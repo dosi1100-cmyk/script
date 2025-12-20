@@ -7,18 +7,21 @@ local Camera = workspace.CurrentCamera
 local Settings = {
     TargetPart = "Head",
     LockKey = Enum.UserInputType.MouseButton2,
+    ToggleKey = Enum.KeyCode.RightShift,
     FOV = 150,
     Smoothing = 5,
     WallCheck = true,
     TeamCheck = false,
     DeadCheck = true,
     Sticky = true,
-    IsBinding = false
+    IsBindingLock = false,
+    IsBindingToggle = false
 }
 
 local Locking = false
 local CurrentTarget = nil
 local DropdownOpen = false
+local GuiVisible = true
 local Connections = {}
 
 local FOVCircle = Drawing.new("Circle")
@@ -29,7 +32,7 @@ FOVCircle.Radius = Settings.FOV
 
 local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 220, 0, 560)
+MainFrame.Size = UDim2.new(0, 220, 0, 600)
 MainFrame.Position = UDim2.new(0, 50, 0, 50)
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 MainFrame.Active = true
@@ -37,7 +40,7 @@ MainFrame.Draggable = true
 
 local Title = Instance.new("TextLabel", MainFrame)
 Title.Size = UDim2.new(1, 0, 0, 40)
-Title.Text = "AIMBOT BY DOSI"
+Title.Text = "ULTIMATE AIMBOT"
 Title.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 Title.TextColor3 = Color3.new(1, 1, 1)
 
@@ -103,13 +106,21 @@ ToggleBtn("DeadCheck", "Dead Check", UDim2.new(0.05, 0, 0.29, 0))
 ToggleBtn("WallCheck", "Wall Check", UDim2.new(0.05, 0, 0.36, 0))
 ToggleBtn("TeamCheck", "Team Check", UDim2.new(0.05, 0, 0.43, 0))
 
-local BindBtn = Instance.new("TextButton", MainFrame)
-BindBtn.Size = UDim2.new(0.9, 0, 0, 30)
-BindBtn.Position = UDim2.new(0.05, 0, 0.52, 0)
-BindBtn.Text = "Bind: MouseButton2"
-BindBtn.BackgroundColor3 = Color3.fromRGB(100, 60, 60)
-BindBtn.TextColor3 = Color3.new(1, 1, 1)
-BindBtn.MouseButton1Click:Connect(function() Settings.IsBinding = true BindBtn.Text = "Press Any Key..." end)
+local BindLockBtn = Instance.new("TextButton", MainFrame)
+BindLockBtn.Size = UDim2.new(0.9, 0, 0, 30)
+BindLockBtn.Position = UDim2.new(0.05, 0, 0.50, 0)
+BindLockBtn.Text = "Aimbot Key: MB2"
+BindLockBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+BindLockBtn.TextColor3 = Color3.new(1, 1, 1)
+BindLockBtn.MouseButton1Click:Connect(function() Settings.IsBindingLock = true BindLockBtn.Text = "Press Aimbot Key..." end)
+
+local BindToggleBtn = Instance.new("TextButton", MainFrame)
+BindToggleBtn.Size = UDim2.new(0.9, 0, 0, 30)
+BindToggleBtn.Position = UDim2.new(0.05, 0, 0.56, 0)
+BindToggleBtn.Text = "GUI Key: RShift"
+BindToggleBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+BindToggleBtn.TextColor3 = Color3.new(1, 1, 1)
+BindToggleBtn.MouseButton1Click:Connect(function() Settings.IsBindingToggle = true BindToggleBtn.Text = "Press Toggle Key..." end)
 
 local function CreateSlider(name, pos, min, max, default, callback)
     local label = Instance.new("TextLabel", MainFrame)
@@ -139,27 +150,19 @@ local function CreateSlider(name, pos, min, max, default, callback)
     UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
 end
 
-CreateSlider("FOV", UDim2.new(0.05, 0, 0.62, 0), 0, 1000, 150, function(v) Settings.FOV = v FOVCircle.Radius = v end)
-CreateSlider("Smooth", UDim2.new(0.05, 0, 0.74, 0), 0, 20, 5, function(v) Settings.Smoothing = v end)
+CreateSlider("FOV", UDim2.new(0.05, 0, 0.65, 0), 0, 1000, 150, function(v) Settings.FOV = v FOVCircle.Radius = v end)
+CreateSlider("Smooth", UDim2.new(0.05, 0, 0.77, 0), 0, 20, 5, function(v) Settings.Smoothing = v end)
 
 local UnloadBtn = Instance.new("TextButton", MainFrame)
-UnloadBtn.Size = UDim2.new(0.9, 0, 0, 40)
-UnloadBtn.Position = UDim2.new(0.05, 0, 0.88, 0)
+UnloadBtn.Size = UDim2.new(0.9, 0, 0, 35)
+UnloadBtn.Position = UDim2.new(0.05, 0, 0.9, 0)
 UnloadBtn.Text = "UNLOAD SCRIPT"
 UnloadBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
 UnloadBtn.TextColor3 = Color3.new(1, 1, 1)
-UnloadBtn.Font = Enum.Font.SourceSansBold
-UnloadBtn.TextSize = 16
-
 UnloadBtn.MouseButton1Click:Connect(function()
-    for _, conn in pairs(Connections) do
-        if conn then conn:Disconnect() end
-    end
+    for _, conn in pairs(Connections) do if conn then conn:Disconnect() end end
     if FOVCircle then FOVCircle:Remove() end
     ScreenGui:Destroy()
-    Locking = false
-    CurrentTarget = nil
-    print("Script Unloaded Successfully.")
 end)
 
 local function Validate(player)
@@ -167,9 +170,7 @@ local function Validate(player)
     local char = player.Character
     local part = char:FindFirstChild(Settings.TargetPart)
     local hum = char:FindFirstChildOfClass("Humanoid")
-    if not part then return false end
-    if Settings.DeadCheck and (not hum or hum.Health <= 0) then return false end
-    if Settings.TeamCheck and player.Team == LocalPlayer.Team then return false end
+    if not part or (Settings.DeadCheck and (not hum or hum.Health <= 0)) or (Settings.TeamCheck and player.Team == LocalPlayer.Team) then return false end
     return true
 end
 
@@ -183,8 +184,7 @@ local function IsVisible(part, char)
 end
 
 local function GetTarget()
-    local target = nil
-    local dist = math.huge
+    local target, dist = nil, math.huge
     local mouseLoc = UserInputService:GetMouseLocation()
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and Validate(p) then
@@ -192,10 +192,7 @@ local function GetTarget()
             local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
             if onScreen and IsVisible(part, p.Character) then
                 local mag = (Vector2.new(pos.X, pos.Y) - mouseLoc).Magnitude
-                if mag <= Settings.FOV and mag < dist then
-                    target = p
-                    dist = mag
-                end
+                if mag <= Settings.FOV and mag < dist then target = p dist = mag end
             end
         end
     end
@@ -203,11 +200,26 @@ local function GetTarget()
 end
 
 table.insert(Connections, UserInputService.InputBegan:Connect(function(input)
-    if Settings.IsBinding then
+    if Settings.IsBindingLock then
         Settings.LockKey = (input.KeyCode ~= Enum.KeyCode.Unknown and input.KeyCode or input.UserInputType)
-        BindBtn.Text = "Bind: " .. tostring(Settings.LockKey.Name)
-        Settings.IsBinding = false
-    elseif input.KeyCode == Settings.LockKey or input.UserInputType == Settings.LockKey then
+        BindLockBtn.Text = "Aimbot Key: " .. tostring(Settings.LockKey.Name)
+        Settings.IsBindingLock = false
+        return
+    end
+    if Settings.IsBindingToggle then
+        if input.KeyCode ~= Enum.KeyCode.Unknown then
+            Settings.ToggleKey = input.KeyCode
+            BindToggleBtn.Text = "GUI Key: " .. tostring(Settings.ToggleKey.Name)
+            Settings.IsBindingToggle = false
+        end
+        return
+    end
+    if input.KeyCode == Settings.ToggleKey then
+        GuiVisible = not GuiVisible
+        MainFrame.Visible = GuiVisible
+        return
+    end
+    if input.KeyCode == Settings.LockKey or input.UserInputType == Settings.LockKey then
         Locking = true
         if Settings.Sticky then CurrentTarget = GetTarget() end
     end
@@ -231,8 +243,7 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
         if CurrentTarget and CurrentTarget.Character and CurrentTarget.Character:FindFirstChild(Settings.TargetPart) then
             local targetPart = CurrentTarget.Character[Settings.TargetPart]
             local lookAt = CFrame.new(Camera.CFrame.Position, targetPart.Position)
-            local smooth = math.clamp(1 / (Settings.Smoothing + 1), 0.01, 1)
-            Camera.CFrame = Camera.CFrame:Lerp(lookAt, smooth)
+            Camera.CFrame = Camera.CFrame:Lerp(lookAt, math.clamp(1 / (Settings.Smoothing + 1), 0.01, 1))
         end
     end
 end))
