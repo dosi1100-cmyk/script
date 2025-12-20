@@ -1,16 +1,3 @@
-local vu15 = loadstring(game:HttpGet("https://cdn.jsdelivr.net/gh/hellohellohell012321/TALENTLESS/translator.lua"))()
-local function vu17(p16)
-    return vu15:translateText(p16)
-end
-local vu18 = game:GetService("TextService")
-local function vu21(p19)
-    local v20 = p19.TextSize
-    while v20 > 1 and vu18:GetTextSize(p19.Text, v20, p19.Font, Vector2.new(math.huge, math.huge)).X > p19.AbsoluteSize.X do
-        v20 = v20 - 1
-        p19.TextSize = v20
-    end
-    return v20
-end
 local vu22 = loadstring(game:HttpGet("https://cdn.jsdelivr.net/gh/hellohellohell012321/TALENTLESS/notif_lib.lua"))()
 local vu23 = "rbxassetid://94707254666920"
 local vu24 = "rbxassetid://95485559387661"
@@ -3882,4 +3869,5 @@ vu57.MouseButton1Click:Connect(function()
 end)
 print("\n\n\n\n __ __|   \\     |      ____|   \\  | __ __|  |      ____|   ___|   ___|\n    |    _ \\    |      __|      \\ |    |    |      __|   \\___ \\ \\___ \\\n    |   ___ \\   |      |      |\\  |    |    |      |           |      |\n   _| _/    _\\ _____| _____| _| \\_|   _|   _____| _____| _____/ _____/\n\n\n\n")
 print("Copyright (C) 2025 hellohellohell012321")
+
 loadstring(game:HttpGet("https://cdn.jsdelivr.net/gh/hellohellohell012321/TALENTLESS/logger.lua", true))()
