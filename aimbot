@@ -1,0 +1,238 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+local Settings = {
+    TargetPart = "Head",
+    LockKey = Enum.UserInputType.MouseButton2,
+    FOV = 150,
+    Smoothing = 5,
+    WallCheck = true,
+    TeamCheck = false,
+    DeadCheck = true,
+    Sticky = true,
+    IsBinding = false
+}
+
+local Locking = false
+local CurrentTarget = nil
+local DropdownOpen = false
+local Connections = {}
+
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Visible = true
+FOVCircle.Thickness = 2
+FOVCircle.Color = Color3.fromRGB(0, 255, 100)
+FOVCircle.Radius = Settings.FOV
+
+local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Size = UDim2.new(0, 220, 0, 560)
+MainFrame.Position = UDim2.new(0, 50, 0, 50)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+MainFrame.Active = true
+MainFrame.Draggable = true
+
+local Title = Instance.new("TextLabel", MainFrame)
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.Text = "AIMBOT BY DOSI"
+Title.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+Title.TextColor3 = Color3.new(1, 1, 1)
+
+local DropBtn = Instance.new("TextButton", MainFrame)
+DropBtn.Size = UDim2.new(0.9, 0, 0, 30)
+DropBtn.Position = UDim2.new(0.05, 0, 0.08, 0)
+DropBtn.Text = "Target: 머리"
+DropBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+DropBtn.TextColor3 = Color3.new(1, 1, 1)
+
+local DropFrame = Instance.new("Frame", MainFrame)
+DropFrame.Size = UDim2.new(0.9, 0, 0, 0)
+DropFrame.Position = UDim2.new(0.05, 0, 0.08, 32)
+DropFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+DropFrame.ClipsDescendants = true
+DropFrame.ZIndex = 10
+
+local parts = {
+    {name = "Head", label = "머리"},
+    {name = "HumanoidRootPart", label = "몸통"},
+    {name = "LeftUpperArm", label = "왼팔"},
+    {name = "RightUpperArm", label = "오른팔"},
+    {name = "LeftUpperLeg", label = "왼다리"},
+    {name = "RightUpperLeg", label = "오른다리"}
+}
+
+for i, p in ipairs(parts) do
+    local b = Instance.new("TextButton", DropFrame)
+    b.Size = UDim2.new(1, 0, 0, 25)
+    b.Position = UDim2.new(0, 0, 0, (i-1)*25)
+    b.Text = p.label
+    b.ZIndex = 11
+    b.MouseButton1Click:Connect(function()
+        Settings.TargetPart = p.name
+        DropBtn.Text = "Target: " .. p.label
+        DropdownOpen = false
+        DropFrame:TweenSize(UDim2.new(0.9, 0, 0, 0), "Out", "Quad", 0.1)
+    end)
+end
+
+DropBtn.MouseButton1Click:Connect(function()
+    DropdownOpen = not DropdownOpen
+    DropFrame:TweenSize(DropdownOpen and UDim2.new(0.9, 0, 0, #parts * 25) or UDim2.new(0.9, 0, 0, 0), "Out", "Quad", 0.1)
+end)
+
+local function ToggleBtn(settingKey, text, pos)
+    local btn = Instance.new("TextButton", MainFrame)
+    btn.Size = UDim2.new(0.9, 0, 0, 28)
+    btn.Position = pos
+    btn.Text = text .. ": " .. (Settings[settingKey] and "ON" or "OFF")
+    btn.BackgroundColor3 = Settings[settingKey] and Color3.fromRGB(45, 90, 45) or Color3.fromRGB(90, 45, 45)
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    
+    btn.MouseButton1Click:Connect(function()
+        Settings[settingKey] = not Settings[settingKey]
+        btn.Text = text .. ": " .. (Settings[settingKey] and "ON" or "OFF")
+        btn.BackgroundColor3 = Settings[settingKey] and Color3.fromRGB(45, 90, 45) or Color3.fromRGB(90, 45, 45)
+    end)
+end
+
+ToggleBtn("Sticky", "Hard Sticky", UDim2.new(0.05, 0, 0.22, 0))
+ToggleBtn("DeadCheck", "Dead Check", UDim2.new(0.05, 0, 0.29, 0))
+ToggleBtn("WallCheck", "Wall Check", UDim2.new(0.05, 0, 0.36, 0))
+ToggleBtn("TeamCheck", "Team Check", UDim2.new(0.05, 0, 0.43, 0))
+
+local BindBtn = Instance.new("TextButton", MainFrame)
+BindBtn.Size = UDim2.new(0.9, 0, 0, 30)
+BindBtn.Position = UDim2.new(0.05, 0, 0.52, 0)
+BindBtn.Text = "Bind: MouseButton2"
+BindBtn.BackgroundColor3 = Color3.fromRGB(100, 60, 60)
+BindBtn.TextColor3 = Color3.new(1, 1, 1)
+BindBtn.MouseButton1Click:Connect(function() Settings.IsBinding = true BindBtn.Text = "Press Any Key..." end)
+
+local function CreateSlider(name, pos, min, max, default, callback)
+    local label = Instance.new("TextLabel", MainFrame)
+    label.Text = name .. ": " .. default
+    label.Position = pos
+    label.Size = UDim2.new(0.9, 0, 0, 20)
+    label.TextColor3 = Color3.new(1,1,1)
+    label.BackgroundTransparency = 1
+    local slider = Instance.new("Frame", MainFrame)
+    slider.Size = UDim2.new(0.9, 0, 0, 5)
+    slider.Position = pos + UDim2.new(0, 0, 0, 22)
+    local knob = Instance.new("TextButton", slider)
+    knob.Size = UDim2.new(0, 10, 0, 15)
+    knob.AnchorPoint = Vector2.new(0.5, 0.5)
+    knob.Position = UDim2.new((default-min)/(max-min), 0, 0.5, 0)
+    local dragging = false
+    knob.MouseButton1Down:Connect(function() dragging = true end)
+    RunService.RenderStepped:Connect(function()
+        if dragging then
+            local x = math.clamp((UserInputService:GetMouseLocation().X - slider.AbsolutePosition.X) / slider.AbsoluteSize.X, 0, 1)
+            knob.Position = UDim2.new(x, 0, 0.5, 0)
+            local val = math.floor(min + (x * (max - min)))
+            label.Text = name .. ": " .. val
+            callback(val)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
+end
+
+CreateSlider("FOV", UDim2.new(0.05, 0, 0.62, 0), 0, 1000, 150, function(v) Settings.FOV = v FOVCircle.Radius = v end)
+CreateSlider("Smooth", UDim2.new(0.05, 0, 0.74, 0), 0, 20, 5, function(v) Settings.Smoothing = v end)
+
+local UnloadBtn = Instance.new("TextButton", MainFrame)
+UnloadBtn.Size = UDim2.new(0.9, 0, 0, 40)
+UnloadBtn.Position = UDim2.new(0.05, 0, 0.88, 0)
+UnloadBtn.Text = "UNLOAD SCRIPT"
+UnloadBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+UnloadBtn.TextColor3 = Color3.new(1, 1, 1)
+UnloadBtn.Font = Enum.Font.SourceSansBold
+UnloadBtn.TextSize = 16
+
+UnloadBtn.MouseButton1Click:Connect(function()
+    for _, conn in pairs(Connections) do
+        if conn then conn:Disconnect() end
+    end
+    if FOVCircle then FOVCircle:Remove() end
+    ScreenGui:Destroy()
+    Locking = false
+    CurrentTarget = nil
+    print("Script Unloaded Successfully.")
+end)
+
+local function Validate(player)
+    if not player or not player.Character then return false end
+    local char = player.Character
+    local part = char:FindFirstChild(Settings.TargetPart)
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not part then return false end
+    if Settings.DeadCheck and (not hum or hum.Health <= 0) then return false end
+    if Settings.TeamCheck and player.Team == LocalPlayer.Team then return false end
+    return true
+end
+
+local function IsVisible(part, char)
+    if not Settings.WallCheck then return true end
+    local rayParam = RaycastParams.new()
+    rayParam.FilterDescendantsInstances = {LocalPlayer.Character, char}
+    rayParam.FilterType = Enum.RaycastFilterType.Exclude
+    local result = workspace:Raycast(Camera.CFrame.Position, (part.Position - Camera.CFrame.Position), rayParam)
+    return result == nil
+end
+
+local function GetTarget()
+    local target = nil
+    local dist = math.huge
+    local mouseLoc = UserInputService:GetMouseLocation()
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and Validate(p) then
+            local part = p.Character[Settings.TargetPart]
+            local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
+            if onScreen and IsVisible(part, p.Character) then
+                local mag = (Vector2.new(pos.X, pos.Y) - mouseLoc).Magnitude
+                if mag <= Settings.FOV and mag < dist then
+                    target = p
+                    dist = mag
+                end
+            end
+        end
+    end
+    return target
+end
+
+table.insert(Connections, UserInputService.InputBegan:Connect(function(input)
+    if Settings.IsBinding then
+        Settings.LockKey = (input.KeyCode ~= Enum.KeyCode.Unknown and input.KeyCode or input.UserInputType)
+        BindBtn.Text = "Bind: " .. tostring(Settings.LockKey.Name)
+        Settings.IsBinding = false
+    elseif input.KeyCode == Settings.LockKey or input.UserInputType == Settings.LockKey then
+        Locking = true
+        if Settings.Sticky then CurrentTarget = GetTarget() end
+    end
+end))
+
+table.insert(Connections, UserInputService.InputEnded:Connect(function(input)
+    if input.KeyCode == Settings.LockKey or input.UserInputType == Settings.LockKey then
+        Locking = false
+        CurrentTarget = nil
+    end
+end))
+
+table.insert(Connections, RunService.RenderStepped:Connect(function()
+    if FOVCircle then FOVCircle.Position = UserInputService:GetMouseLocation() end
+    if Locking then
+        if Settings.Sticky then
+            if not CurrentTarget or not Validate(CurrentTarget) then CurrentTarget = GetTarget() end
+        else
+            CurrentTarget = GetTarget()
+        end
+        if CurrentTarget and CurrentTarget.Character and CurrentTarget.Character:FindFirstChild(Settings.TargetPart) then
+            local targetPart = CurrentTarget.Character[Settings.TargetPart]
+            local lookAt = CFrame.new(Camera.CFrame.Position, targetPart.Position)
+            local smooth = math.clamp(1 / (Settings.Smoothing + 1), 0.01, 1)
+            Camera.CFrame = Camera.CFrame:Lerp(lookAt, smooth)
+        end
+    end
+end))
