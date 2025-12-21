@@ -1,0 +1,266 @@
+local players = game:GetService("Players")
+local runService = game:GetService("RunService")
+local userInput = game:GetService("UserInputService")
+local localPlayer = players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+-- [[ 1. 설정값 - 로직 100% 보존 ]]
+local Config = {
+    Enabled = true,
+    TeamCheck = true,
+    FFCheck = true,
+    WallCheck = true,
+    AutoFire = true,
+    StrongLock = true,
+    Is360Mode = false,
+    ADSOnly = false,
+    FOVSize = 150,
+    Range360 = 500,
+    FireRate = 0.05, -- 발사 간격 엔진 활성화
+    MenuKey = Enum.KeyCode.Insert,
+    TriggerKey = Enum.KeyCode.T
+}
+
+local lastFireTime = 0
+local isRightMouseDown = false
+local isBindingMenu = false
+local isBindingTrigger = false
+
+-- [[ 테마 컬러 ]]
+local COL_BG = Color3.fromRGB(12, 12, 15)
+local COL_MAIN = Color3.fromRGB(140, 0, 255)
+local COL_TARGET = Color3.fromRGB(255, 0, 0)
+local COL_OFF = Color3.fromRGB(35, 35, 40)
+local COL_WHITE = Color3.fromRGB(255, 255, 255)
+
+-- [[ 2. FOV 원 ]]
+local fovCircle = Drawing.new("Circle")
+fovCircle.Visible = true
+fovCircle.Thickness = 1
+fovCircle.Color = COL_MAIN
+fovCircle.Radius = Config.FOVSize
+
+-- [[ 3. GUI 생성 ]]
+local screenGui = Instance.new("ScreenGui", localPlayer:WaitForChild("PlayerGui"))
+screenGui.Name = "Sentinel_V33_2"
+screenGui.ResetOnSpawn = false
+screenGui.IgnoreGuiInset = true
+screenGui.DisplayOrder = 10
+
+-- [설명창 전용 레이어]
+local tooltipGui = Instance.new("ScreenGui", localPlayer.PlayerGui)
+tooltipGui.DisplayOrder = 999
+tooltipGui.IgnoreGuiInset = true
+
+local tooltipFrame = Instance.new("Frame", tooltipGui)
+tooltipFrame.Size = UDim2.new(0, 220, 0, 80)
+tooltipFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 12)
+tooltipFrame.Visible = false
+Instance.new("UIStroke", tooltipFrame).Color = COL_MAIN
+Instance.new("UICorner", tooltipFrame).CornerRadius = UDim.new(0, 4)
+
+local tooltipLabel = Instance.new("TextLabel", tooltipFrame)
+tooltipLabel.Size = UDim2.new(1, -20, 1, -10); tooltipLabel.Position = UDim2.new(0, 10, 0, 5)
+tooltipLabel.BackgroundTransparency = 1; tooltipLabel.TextColor3 = COL_WHITE; tooltipLabel.Font = Enum.Font.GothamBold
+tooltipLabel.TextSize = 12; tooltipLabel.TextWrapped = true; tooltipLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+-- [메인 프레임 디자인]
+local mainFrame = Instance.new("Frame", screenGui)
+mainFrame.Size = UDim2.new(0, 260, 0, 750)
+mainFrame.Position = UDim2.new(0.05, 0, 0.1, 0)
+mainFrame.BackgroundColor3 = COL_BG
+mainFrame.Active = true
+
+Instance.new("UIStroke", mainFrame).Color = COL_MAIN
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 4)
+
+local modalTrigger = Instance.new("TextButton", mainFrame)
+modalTrigger.Size = UDim2.new(0, 0, 0, 0); modalTrigger.Visible = true; modalTrigger.Modal = true
+
+local title = Instance.new("TextLabel", mainFrame)
+title.Size = UDim2.new(1, 0, 0, 50); title.Text = "센티널 엘리트 V33.2"; title.TextColor3 = COL_WHITE
+title.Font = Enum.Font.Michroma; title.TextSize = 15; title.BackgroundTransparency = 1
+
+local function createNoirBtn(text, desc, yPos)
+    local btnFrame = Instance.new("Frame", mainFrame)
+    btnFrame.Size = UDim2.new(0.9, 0, 0, 38); btnFrame.Position = UDim2.new(0.05, 0, 0, yPos)
+    btnFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+    local bStroke = Instance.new("UIStroke", btnFrame); bStroke.Color = Color3.fromRGB(50, 50, 60)
+    Instance.new("UICorner", btnFrame).CornerRadius = UDim.new(0, 2)
+    
+    local btn = Instance.new("TextButton", btnFrame)
+    btn.Size = UDim2.new(1, 0, 1, 0); btn.BackgroundTransparency = 1
+    btn.Text = "      " .. text; btn.TextColor3 = COL_WHITE; btn.Font = Enum.Font.GothamBold; btn.TextSize = 11; btn.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local ind = Instance.new("Frame", btnFrame); ind.Size = UDim2.new(0, 3, 0.5, 0); ind.Position = UDim2.new(0, 5, 0.25, 0); ind.BackgroundColor3 = COL_OFF
+    
+    btn.MouseEnter:Connect(function() tooltipLabel.Text = desc tooltipFrame.Visible = true end)
+    btn.MouseLeave:Connect(function() tooltipFrame.Visible = false end)
+    
+    return btn, ind, bStroke
+end
+
+-- 버튼들
+local ToggleBtn, ToggleInd, ToggleStr = createNoirBtn("시스템 가동 상태", "메인 전원", 65)
+local TeamBtn, TeamInd, TeamStr     = createNoirBtn("아군 보호 모드", "아군 제외", 110)
+local FFBtn, FFInd, FFStr         = createNoirBtn("무적 상태 감지", "무적 제외", 155)
+local WallBtn, WallInd, WallStr     = createNoirBtn("장애물 투과 검사", "벽 체크", 200)
+local LockBtn, LockInd, LockStr     = createNoirBtn("강력한 타겟 고정", "에임 고정", 245)
+local ModeBtn, ModeInd, ModeStr     = createNoirBtn("360도 전방위 엔진", "전방위 조준", 290)
+local ADSBtn, ADSInd, ADSStr       = createNoirBtn("정밀 조준 시 활성", "우클릭 활성", 335)
+local FireBtn, FireInd, FireStr     = createNoirBtn("자동 격발 시스템", "자동 발사", 380)
+
+local AimSetBtn = Instance.new("TextButton", mainFrame)
+AimSetBtn.Size = UDim2.new(0.9, 0, 0, 42); AimSetBtn.Position = UDim2.new(0.05, 0, 0, 430)
+AimSetBtn.BackgroundColor3 = COL_MAIN; AimSetBtn.Text = "엘리트 최적화 설정 적용"; AimSetBtn.TextColor3 = COL_WHITE
+AimSetBtn.Font = Enum.Font.GothamBold; AimSetBtn.TextSize = 12; Instance.new("UICorner", AimSetBtn).CornerRadius = UDim.new(0, 2)
+
+local ValLabel = Instance.new("TextLabel", mainFrame)
+ValLabel.Size = UDim2.new(0.9, 0, 0, 30); ValLabel.Position = UDim2.new(0.05, 0, 0, 485)
+ValLabel.TextColor3 = COL_WHITE; ValLabel.BackgroundTransparency = 1; ValLabel.TextSize = 12; ValLabel.Font = Enum.Font.GothamBold; ValLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local sliderBack = Instance.new("TextButton", mainFrame)
+sliderBack.Name = "SliderArea"; sliderBack.Size = UDim2.new(0.9, 0, 0, 6); sliderBack.Position = UDim2.new(0.05, 0, 0, 520); sliderBack.BackgroundColor3 = Color3.fromRGB(30, 30, 35); sliderBack.Text = ""
+Instance.new("UICorner", sliderBack)
+
+local sliderFill = Instance.new("Frame", sliderBack); sliderFill.Size = UDim2.new(0.5, 0, 1, 0); sliderFill.BackgroundColor3 = COL_MAIN; Instance.new("UICorner", sliderFill)
+local sliderDot = Instance.new("Frame", sliderFill); sliderDot.Size = UDim2.new(0, 14, 0, 14); sliderDot.Position = UDim2.new(1, -7, 0.5, -7); sliderDot.BackgroundColor3 = COL_WHITE; Instance.new("UICorner", sliderDot)
+
+local MenuKeyBtn = Instance.new("TextButton", mainFrame); MenuKeyBtn.Size = UDim2.new(0.9, 0, 0, 35); MenuKeyBtn.Position = UDim2.new(0.05, 0, 0, 560); MenuKeyBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 18); MenuKeyBtn.TextColor3 = COL_WHITE; MenuKeyBtn.Font = Enum.Font.Gotham; MenuKeyBtn.TextSize = 11; Instance.new("UICorner", MenuKeyBtn)
+local TrigKeyBtn = Instance.new("TextButton", mainFrame); TrigKeyBtn.Size = UDim2.new(0.9, 0, 0, 35); TrigKeyBtn.Position = UDim2.new(0.05, 0, 0, 605); TrigKeyBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 18); TrigKeyBtn.TextColor3 = COL_WHITE; TrigKeyBtn.Font = Enum.Font.Gotham; TrigKeyBtn.TextSize = 11; Instance.new("UICorner", TrigKeyBtn)
+
+-- [[ 4. 기능 로직 복구 (중략 없음) ]]
+local function updateUI()
+    local function setOn(ind, str, val)
+        ind.BackgroundColor3 = val and COL_MAIN or COL_OFF
+        str.Color = val and COL_MAIN or Color3.fromRGB(50, 50, 60)
+    end
+    setOn(ToggleInd, ToggleStr, Config.Enabled); setOn(TeamInd, TeamStr, Config.TeamCheck)
+    setOn(FFInd, FFStr, Config.FFCheck); setOn(WallInd, WallStr, Config.WallCheck)
+    setOn(LockInd, LockStr, Config.StrongLock); setOn(ModeInd, ModeStr, Config.Is360Mode)
+    setOn(ADSInd, ADSStr, Config.ADSOnly); setOn(FireInd, FireStr, Config.AutoFire)
+    
+    local val = Config.Is360Mode and Config.Range360 or Config.FOVSize
+    local maxVal = Config.Is360Mode and 1000 or 800
+    ValLabel.Text = (Config.Is360Mode and "스캔 범위: " or "조준 범위: ") .. math.floor(val)
+    sliderFill.Size = UDim2.new(math.clamp(val/maxVal, 0, 1), 0, 1, 0)
+    MenuKeyBtn.Text = "메뉴 단축키: " .. Config.MenuKey.Name
+    TrigKeyBtn.Text = "시스템 온/오프: " .. Config.TriggerKey.Name
+    fovCircle.Radius = Config.FOVSize
+    fovCircle.Visible = (Config.Enabled and not Config.Is360Mode)
+end
+
+-- [슬라이더 로직]
+local isDragging = false
+local function updateSlider()
+    local mousePos = userInput:GetMouseLocation().X
+    local relativePos = mousePos - sliderBack.AbsolutePosition.X
+    local percentage = math.clamp(relativePos / sliderBack.AbsoluteSize.X, 0, 1)
+    if Config.Is360Mode then Config.Range360 = percentage * 1000 else Config.FOVSize = percentage * 800 end
+    updateUI()
+end
+sliderBack.MouseButton1Down:Connect(function() isDragging = true updateSlider() end)
+userInput.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then isDragging = false end end)
+userInput.InputChanged:Connect(function(input) if isDragging and input.UserInputType == Enum.UserInputType.MouseMovement then updateSlider() end end)
+
+-- [드래그 핸들]
+local dragToggle, dragStart, startPos
+title.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragToggle = true; dragStart = input.Position; startPos = mainFrame.Position
+        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragToggle = false end end)
+    end
+end)
+userInput.InputChanged:Connect(function(input)
+    if dragToggle and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.Y.Offset + delta.Y, startPos.X.Scale, startPos.Y.Offset + delta.Y) -- (제공 소스 드래그 방식 유지)
+        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+-- [[ 벽 체크 함수 복구 ]]
+local function isVisible(part)
+    if not Config.WallCheck then return true end
+    local params = RaycastParams.new()
+    params.FilterDescendantsInstances = {localPlayer.Character, camera}
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    local result = workspace:Raycast(camera.CFrame.Position, part.Position - camera.CFrame.Position, params)
+    return result == nil or result.Instance:IsDescendantOf(part.Parent)
+end
+
+-- [[ 메인 루프 (에임봇 + 자동 발사 엔진 고침) ]]
+runService.RenderStepped:Connect(function()
+    local mouseLoc = userInput:GetMouseLocation()
+    fovCircle.Position = mouseLoc
+    if tooltipFrame.Visible then tooltipFrame.Position = UDim2.new(0, mouseLoc.X + 20, 0, mouseLoc.Y + 15) end
+    
+    local target = (function() 
+        if not Config.Enabled or (Config.ADSOnly and not isRightMouseDown) then return nil end
+        local nearestTarget, shortestDist = nil, (Config.Is360Mode and Config.Range360 or Config.FOVSize)
+        for _, player in pairs(players:GetPlayers()) do
+            if player ~= localPlayer and player.Character and player.Character:FindFirstChild("Head") and player.Character.Humanoid.Health > 0 then
+                if Config.TeamCheck and (player.Team == localPlayer.Team or player.TeamColor == localPlayer.TeamColor) then continue end
+                if Config.FFCheck and player.Character:FindFirstChildOfClass("ForceField") then continue end
+                
+                local head = player.Character.Head
+                if not isVisible(head) then continue end -- 벽 체크 엔진 정상 가동
+                
+                local screenPos, onScreen = camera:WorldToViewportPoint(head.Position)
+                if Config.Is360Mode then
+                    local d = (localPlayer.Character.Head.Position - head.Position).Magnitude
+                    if d < shortestDist then nearestTarget = head; shortestDist = d end
+                elseif onScreen then
+                    local d = (Vector2.new(screenPos.X, screenPos.Y) - mouseLoc).Magnitude
+                    if d < shortestDist then nearestTarget = head; shortestDist = d end
+                end
+            end
+        end
+        return nearestTarget
+    end)()
+
+    if target then
+        fovCircle.Color = COL_TARGET
+        -- 에임봇 로직
+        if Config.StrongLock then camera.CFrame = CFrame.new(camera.CFrame.Position, target.Position)
+        else camera.CFrame = camera.CFrame:Lerp(CFrame.new(camera.CFrame.Position, target.Position), 0.2) end
+        
+        -- [[ 자동 발사(트리거봇) 엔진 복구 ]]
+        if Config.AutoFire and (tick() - lastFireTime >= Config.FireRate) then
+            lastFireTime = tick()
+            mouse1press()
+            task.delay(0.01, mouse1release)
+        end
+    else 
+        fovCircle.Color = COL_MAIN 
+    end
+end)
+
+ToggleBtn.MouseButton1Click:Connect(function() Config.Enabled = not Config.Enabled updateUI() end)
+TeamBtn.MouseButton1Click:Connect(function() Config.TeamCheck = not Config.TeamCheck updateUI() end)
+FFBtn.MouseButton1Click:Connect(function() Config.FFCheck = not Config.FFCheck updateUI() end)
+WallBtn.MouseButton1Click:Connect(function() Config.WallCheck = not Config.WallCheck updateUI() end)
+LockBtn.MouseButton1Click:Connect(function() Config.StrongLock = not Config.StrongLock updateUI() end)
+ModeBtn.MouseButton1Click:Connect(function() Config.Is360Mode = not Config.Is360Mode updateUI() end)
+ADSBtn.MouseButton1Click:Connect(function() Config.ADSOnly = not Config.ADSOnly updateUI() end)
+FireBtn.MouseButton1Click:Connect(function() Config.AutoFire = not Config.AutoFire updateUI() end)
+
+AimSetBtn.MouseButton1Click:Connect(function() 
+    Config.ADSOnly = true; Config.StrongLock = true; Config.Is360Mode = false; 
+    Config.AutoFire = false; Config.WallCheck = false; Config.TeamCheck = false; Config.FFCheck = false
+    updateUI() 
+end)
+
+MenuKeyBtn.MouseButton1Click:Connect(function() isBindingMenu = true MenuKeyBtn.Text = "..." end)
+TrigKeyBtn.MouseButton1Click:Connect(function() isBindingTrigger = true TrigKeyBtn.Text = "..." end)
+
+userInput.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then isRightMouseDown = true end
+    if isBindingMenu and input.UserInputType == Enum.UserInputType.Keyboard then Config.MenuKey = input.KeyCode; isBindingMenu = false; updateUI()
+    elseif isBindingTrigger and input.UserInputType == Enum.UserInputType.Keyboard then Config.TriggerKey = input.KeyCode; isBindingTrigger = false; updateUI()
+    elseif input.KeyCode == Config.MenuKey then mainFrame.Visible = not mainFrame.Visible
+    elseif input.KeyCode == Config.TriggerKey then Config.Enabled = not Config.Enabled; updateUI() end
+end)
+userInput.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton2 then isRightMouseDown = false end end)
+
+updateUI()
