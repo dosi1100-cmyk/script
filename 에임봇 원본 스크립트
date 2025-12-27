@@ -1,0 +1,1274 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- ESP 객체들을 추적하여 Unload 시 삭제하기 위한 테이블
+local AllDrawings = {}
+
+local UnlockConnection
+
+-- 3인칭 모드에서 카메라 제한을 푸는 함수
+local function UnlockCamera()
+    if UnlockConnection then return end
+
+    UnlockConnection = RunService.RenderStepped:Connect(function()
+        if LocalPlayer then
+            if LocalPlayer.CameraMode ~= Enum.CameraMode.Classic then
+                LocalPlayer.CameraMode = Enum.CameraMode.Classic
+            end
+
+            if LocalPlayer.CameraMaxZoomDistance < 128 then
+                LocalPlayer.CameraMaxZoomDistance = 128
+            end
+            
+            if LocalPlayer.CameraMinZoomDistance > 0.5 then
+                LocalPlayer.CameraMinZoomDistance = 0.5
+            end
+        end
+    end)
+end
+
+local Settings = {
+    AimbotEnabled = true,
+    TargetPart = "Head",
+    LockKey = Enum.UserInputType.MouseButton2,
+    ToggleKey = Enum.KeyCode.RightShift,
+    TriggerToggleKey = Enum.KeyCode.T, 
+    AimbotType = "Camera",
+    FOV = 150,
+    FOVCircleVisible = true,
+    Smoothing = 5,
+    WallCheck = true,
+    TeamCheck = false,
+    DeadCheck = true,
+    Sticky = true,
+    ForceFieldCheck = true,
+    TriggerBotMode = "None",
+    LastTriggerMode = "FOV", 
+    TriggerDelay = 0,
+    TriggerDistance = 1000,
+    TargetHighlightEnabled = false,
+    SkeletonEnabled = false,
+    BoxEnabled = false,
+    NameEnabled = false,
+    HeadDotEnabled = false,
+    ChamsEnabled = false,
+    HealthMode = "None", 
+    ESPDistance = 5000,
+    WalkSpeed = 16,
+    JumpPower = 50,
+    LockSpeedJump = false,
+    FlyEnabled = false,
+    FlySpeed = 50,
+    NoclipEnabled = false,
+    TpWalkEnabled = false,
+    TpWalkSpeed = 2,
+    InfiniteJumpEnabled = false,
+    JerkEnabled = false,
+    JerkR15Enabled = false,
+    CameraFOV = 70,
+    ThirdPersonEnabled = false,
+    NotificationsEnabled = true,
+    LockFOV = false,
+    TargetDistanceCheck = "Mouse",
+}
+
+local function AutoDetectStats()
+    pcall(function()
+        if Camera and Camera.FieldOfView then
+            Settings.CameraFOV = Camera.FieldOfView or Settings.CameraFOV
+        end
+    end)
+    pcall(function()
+        local char = LocalPlayer and LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            if hum.WalkSpeed then Settings.WalkSpeed = hum.WalkSpeed end
+            if hum.JumpPower then Settings.JumpPower = hum.JumpPower end
+        end
+    end)
+    pcall(function()
+        if Camera and Settings.CameraFOV then
+            Camera.FieldOfView = Settings.CameraFOV
+        end
+    end)
+end
+pcall(function()
+    AutoDetectStats()
+    if LocalPlayer and (not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChildOfClass("Humanoid")) then
+        LocalPlayer.CharacterAdded:Connect(function()
+            task.wait(0.5)
+            pcall(AutoDetectStats)
+        end)
+    end
+end)
+
+local Locking = false
+local CurrentTarget = nil
+local DropdownOpen = false
+local TypeDropdownOpen = false
+local HealthDropdownOpen = false 
+local TriggerDropdownOpen = false
+local TargetDistDropdownOpen = false
+local TeleportDropdownOpen = false 
+
+local GuiVisible = true
+local Connections = {}
+local JerkAnims = {}
+local R15Track = nil
+
+-- 카메라 상태 저장 변수
+local SavedCameraState = nil
+
+local TargetCham = Instance.new("Highlight")
+TargetCham.Name = "TargetHighlight"
+TargetCham.FillColor = Color3.fromRGB(255, 50, 50) 
+TargetCham.OutlineColor = Color3.fromRGB(255, 255, 255) 
+TargetCham.FillTransparency = 0.4
+TargetCham.OutlineTransparency = 0
+
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Visible = Settings.FOVCircleVisible
+FOVCircle.Thickness = 1.5
+FOVCircle.Color = Color3.fromRGB(150, 100, 255)
+FOVCircle.Radius = Settings.FOV
+table.insert(AllDrawings, FOVCircle)
+
+local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
+ScreenGui.Name = "AIMBOT BY DOSI"
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+ScreenGui.ResetOnSpawn = false
+
+local NotificationContainer = Instance.new("Frame", ScreenGui)
+NotificationContainer.Name = "NotificationContainer"
+NotificationContainer.Size = UDim2.new(0, 260, 0, 300)
+NotificationContainer.AnchorPoint = Vector2.new(1, 1)
+NotificationContainer.Position = UDim2.new(1, -20, 1, -20)
+NotificationContainer.BackgroundTransparency = 1
+NotificationContainer.ClipsDescendants = false
+
+local UIList = Instance.new("UIListLayout", NotificationContainer)
+UIList.Padding = UDim.new(0, 8)
+UIList.SortOrder = Enum.SortOrder.LayoutOrder
+UIList.VerticalAlignment = Enum.VerticalAlignment.Bottom
+
+local layoutOrderCounter = 0
+local maxNotifications = 10
+
+local function cleanupOldNotifications()
+    local frames = {}
+    for _, child in ipairs(NotificationContainer:GetChildren()) do
+        if child:IsA("Frame") then
+            table.insert(frames, child)
+        end
+    end
+    if #frames <= maxNotifications then return end
+    table.sort(frames, function(a,b) return (a.LayoutOrder or 0) < (b.LayoutOrder or 0) end)
+    while #frames > maxNotifications do
+        local oldest = table.remove(frames, 1)
+        if oldest and oldest.Parent then oldest:Destroy() end
+    end
+end
+
+local function ShowMenuNotification(text)
+    if not Settings.NotificationsEnabled then return end
+
+    if not text then return end
+    layoutOrderCounter = layoutOrderCounter + 1
+    if layoutOrderCounter > 1000000 then layoutOrderCounter = 0 end
+
+    local notif = Instance.new("Frame", NotificationContainer)
+    notif.Size = UDim2.new(0, 260, 0, 40)
+    notif.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+    notif.BorderSizePixel = 0
+    notif.LayoutOrder = layoutOrderCounter
+    notif.BackgroundTransparency = 1
+    notif.ZIndex = 1000
+    local notifCorner = Instance.new("UICorner", notif)
+    notifCorner.CornerRadius = UDim.new(0, 8)
+
+    local NotificationLabel = Instance.new("TextLabel", notif)
+    NotificationLabel.Size = UDim2.new(1, -16, 1, 0)
+    NotificationLabel.Position = UDim2.new(0, 8, 0, 0)
+    NotificationLabel.BackgroundTransparency = 1
+    NotificationLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    NotificationLabel.Font = Enum.Font.SourceSansSemibold
+    NotificationLabel.TextSize = 18
+    NotificationLabel.TextXAlignment = Enum.TextXAlignment.Left
+    NotificationLabel.TextYAlignment = Enum.TextYAlignment.Center
+    NotificationLabel.Text = text
+    NotificationLabel.RichText = false
+    NotificationLabel.TextWrapped = true
+
+    NotificationLabel.TextScaled = false
+    NotificationLabel.TextTransparency = 0
+    NotificationLabel.TextStrokeTransparency = 0
+    NotificationLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    NotificationLabel.ZIndex = notif.ZIndex + 1
+    NotificationLabel.TextSize = 18
+
+    local tweenInFrame = TweenService:Create(notif, TweenInfo.new(0.12), {BackgroundTransparency = 0})
+    tweenInFrame:Play()
+
+    cleanupOldNotifications()
+
+    task.spawn(function()
+        task.wait(2.5)
+        if notif and notif.Parent then
+            local tweenOut1 = TweenService:Create(notif, TweenInfo.new(0.12), {BackgroundTransparency = 1})
+            tweenOut1:Play()
+            tweenOut1.Completed:Wait()
+            if notif and notif.Parent then notif:Destroy() end
+        end
+    end)
+end
+
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Size = UDim2.new(0, 350, 0, 720)
+MainFrame.Position = UDim2.new(0.5, -175, 0.5, -360)
+MainFrame.BackgroundColor3 = Color3.fromRGB(35, 25, 55)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 12)
+
+-- 드롭다운 클릭 방지를 위한 InputBlocker
+local InputBlocker = Instance.new("TextButton", MainFrame)
+InputBlocker.Name = "InputBlocker"
+InputBlocker.Size = UDim2.new(1, 0, 1, 0)
+InputBlocker.BackgroundTransparency = 1
+InputBlocker.Text = ""
+InputBlocker.Visible = false
+InputBlocker.ZIndex = 85 
+InputBlocker.Active = true 
+
+local TabHolder = Instance.new("Frame", MainFrame)
+TabHolder.Size = UDim2.new(1, -20, 0, 40)
+TabHolder.Position = UDim2.new(0, 10, 0, 10)
+TabHolder.BackgroundTransparency = 1
+
+local dragging, dragInput, dragStart, startPos
+local function update(input)
+    local delta = input.Position - dragStart
+    MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+TabHolder.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then dragging = false end
+        end)
+    end
+end)
+TabHolder.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then update(input) end
+end)
+
+local AimTabBtn = Instance.new("TextButton", TabHolder)
+AimTabBtn.Size = UDim2.new(0.2, -5, 1, 0)
+AimTabBtn.BackgroundColor3 = Color3.fromRGB(60, 50, 90)
+AimTabBtn.Text = "Aim"
+AimTabBtn.TextColor3 = Color3.new(1, 1, 1)
+AimTabBtn.Font = Enum.Font.SourceSansBold
+AimTabBtn.TextSize = 16
+AimTabBtn.Position = UDim2.new(0, 0, 0, 0)
+Instance.new("UICorner", AimTabBtn)
+
+local EspTabBtn = Instance.new("TextButton", TabHolder)
+EspTabBtn.Size = UDim2.new(0.2, -5, 1, 0)
+EspTabBtn.Position = UDim2.new(0.2, 2, 0, 0)
+EspTabBtn.BackgroundColor3 = Color3.fromRGB(45, 35, 65)
+EspTabBtn.Text = "ESP"
+EspTabBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+EspTabBtn.Font = Enum.Font.SourceSansBold
+EspTabBtn.TextSize = 16
+Instance.new("UICorner", EspTabBtn)
+
+local PlayerTabBtn = Instance.new("TextButton", TabHolder)
+PlayerTabBtn.Size = UDim2.new(0.2, -5, 1, 0)
+PlayerTabBtn.Position = UDim2.new(0.4, 4, 0, 0)
+PlayerTabBtn.BackgroundColor3 = Color3.fromRGB(45, 35, 65)
+PlayerTabBtn.Text = "Player"
+PlayerTabBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+PlayerTabBtn.Font = Enum.Font.SourceSansBold
+PlayerTabBtn.TextSize = 16
+Instance.new("UICorner", PlayerTabBtn)
+
+local TeleportTabBtn = Instance.new("TextButton", TabHolder)
+TeleportTabBtn.Size = UDim2.new(0.2, -5, 1, 0)
+TeleportTabBtn.Position = UDim2.new(0.6, 6, 0, 0)
+TeleportTabBtn.BackgroundColor3 = Color3.fromRGB(45, 35, 65)
+TeleportTabBtn.Text = "Teleport"
+TeleportTabBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+TeleportTabBtn.Font = Enum.Font.SourceSansBold
+TeleportTabBtn.TextSize = 16
+Instance.new("UICorner", TeleportTabBtn)
+
+local SettingsTabBtn = Instance.new("TextButton", TabHolder)
+SettingsTabBtn.Size = UDim2.new(0.2, -5, 1, 0)
+SettingsTabBtn.Position = UDim2.new(0.8, 8, 0, 0)
+SettingsTabBtn.BackgroundColor3 = Color3.fromRGB(45, 35, 65)
+SettingsTabBtn.Text = "Settings"
+SettingsTabBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+SettingsTabBtn.Font = Enum.Font.SourceSansBold
+SettingsTabBtn.TextSize = 16
+Instance.new("UICorner", SettingsTabBtn)
+
+local AimbotPage = Instance.new("ScrollingFrame", MainFrame)
+AimbotPage.Size = UDim2.new(1, 0, 1, -120)
+AimbotPage.Position = UDim2.new(0, 0, 0, 60)
+AimbotPage.BackgroundTransparency = 1
+AimbotPage.ScrollBarThickness = 2
+AimbotPage.CanvasSize = UDim2.new(0, 0, 0, 1200) 
+AimbotPage.Visible = true
+
+local EspPage = Instance.new("ScrollingFrame", MainFrame)
+EspPage.Size = UDim2.new(1, 0, 1, -120)
+EspPage.Position = UDim2.new(0, 0, 0, 60)
+EspPage.BackgroundTransparency = 1
+EspPage.ScrollBarThickness = 2
+EspPage.CanvasSize = UDim2.new(0, 0, 0, 700)
+EspPage.Visible = false
+
+local PlayerPage = Instance.new("ScrollingFrame", MainFrame)
+PlayerPage.Size = UDim2.new(1, 0, 1, -120)
+PlayerPage.Position = UDim2.new(0, 0, 0, 60)
+PlayerPage.BackgroundTransparency = 1
+PlayerPage.ScrollBarThickness = 2
+PlayerPage.CanvasSize = UDim2.new(0, 0, 0, 850)
+PlayerPage.Visible = false
+
+local TeleportPage = Instance.new("ScrollingFrame", MainFrame)
+TeleportPage.Size = UDim2.new(1, 0, 1, -120)
+TeleportPage.Position = UDim2.new(0, 0, 0, 60)
+TeleportPage.BackgroundTransparency = 1
+TeleportPage.ScrollBarThickness = 2
+TeleportPage.CanvasSize = UDim2.new(0, 0, 0, 500)
+TeleportPage.Visible = false
+
+local SettingsPage = Instance.new("ScrollingFrame", MainFrame)
+SettingsPage.Size = UDim2.new(1, 0, 1, -120)
+SettingsPage.Position = UDim2.new(0, 0, 0, 60)
+SettingsPage.BackgroundTransparency = 1
+SettingsPage.ScrollBarThickness = 2
+SettingsPage.CanvasSize = UDim2.new(0, 0, 0, 600)
+SettingsPage.Visible = false
+
+local function OpenPage(page, btn)
+    AimbotPage.Visible = false; EspPage.Visible = false; PlayerPage.Visible = false; SettingsPage.Visible = false; TeleportPage.Visible = false
+    AimTabBtn.BackgroundColor3 = Color3.fromRGB(45, 35, 65); AimTabBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+    EspTabBtn.BackgroundColor3 = Color3.fromRGB(45, 35, 65); EspTabBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+    PlayerTabBtn.BackgroundColor3 = Color3.fromRGB(45, 35, 65); PlayerTabBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+    SettingsTabBtn.BackgroundColor3 = Color3.fromRGB(45, 35, 65); SettingsTabBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+    TeleportTabBtn.BackgroundColor3 = Color3.fromRGB(45, 35, 65); TeleportTabBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+    
+    page.Visible = true
+    btn.BackgroundColor3 = Color3.fromRGB(60, 50, 90)
+    btn.TextColor3 = Color3.new(1, 1, 1)
+end
+
+AimTabBtn.MouseButton1Click:Connect(function() OpenPage(AimbotPage, AimTabBtn) end)
+EspTabBtn.MouseButton1Click:Connect(function() OpenPage(EspPage, EspTabBtn) end)
+PlayerTabBtn.MouseButton1Click:Connect(function() OpenPage(PlayerPage, PlayerTabBtn) end)
+TeleportTabBtn.MouseButton1Click:Connect(function() OpenPage(TeleportPage, TeleportTabBtn) end)
+SettingsTabBtn.MouseButton1Click:Connect(function() OpenPage(SettingsPage, SettingsTabBtn) end)
+
+local function CreateToggle(parent, text, settingKey, yPos, callback)
+    local container = Instance.new("Frame", parent)
+    container.Size = UDim2.new(1, -40, 0, 28)
+    container.Position = UDim2.new(0, 20, 0, yPos)
+    container.BackgroundTransparency = 1
+    local label = Instance.new("TextLabel", container)
+    label.Size = UDim2.new(0.7, 0, 1, 0)
+    label.Text = text; label.TextColor3 = Color3.fromRGB(200, 200, 200)
+    label.TextXAlignment = Enum.TextXAlignment.Left; label.BackgroundTransparency = 1
+    local btn = Instance.new("TextButton", container)
+    btn.Size = UDim2.new(0, 45, 0, 20); btn.Position = UDim2.new(1, -45, 0.5, -10)
+    btn.Text = Settings[settingKey] and "ON" or "OFF"
+    btn.BackgroundColor3 = Settings[settingKey] and Color3.fromRGB(75, 175, 75) or Color3.fromRGB(175, 75, 75)
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    Instance.new("UICorner", btn)
+    btn.MouseButton1Click:Connect(function()
+        Settings[settingKey] = not Settings[settingKey]
+        btn.Text = Settings[settingKey] and "ON" or "OFF"
+        btn.BackgroundColor3 = Settings[settingKey] and Color3.fromRGB(75, 175, 75) or Color3.fromRGB(175, 75, 75)
+        if callback then
+            pcall(function() callback(Settings[settingKey]) end)
+        end
+        local statusText = Settings[settingKey] and "켜졌습니다." or "꺼졌습니다."
+        local notifText = "[" .. label.Text .. "] " .. statusText
+        ShowMenuNotification(notifText)
+    end)
+    return btn
+end
+
+local function CreateSlider(parent, name, settingKey, yPos, min, max, isFloat)
+    local label = Instance.new("TextLabel", parent)
+    label.Text = name .. ": " .. Settings[settingKey]
+    label.Position = UDim2.new(0, 20, 0, yPos); label.Size = UDim2.new(1, -40, 0, 20)
+    label.TextColor3 = Color3.fromRGB(200, 200, 200); label.TextXAlignment = Enum.TextXAlignment.Left; label.BackgroundTransparency = 1
+    local sliderBar = Instance.new("Frame", parent)
+    sliderBar.Size = UDim2.new(1, -40, 0, 4); sliderBar.Position = UDim2.new(0, 20, 0, yPos + 22); sliderBar.BackgroundColor3 = Color3.fromRGB(60, 50, 90)
+    local knob = Instance.new("Frame", sliderBar)
+    knob.Size = UDim2.new(0, 12, 0, 12); knob.AnchorPoint = Vector2.new(0.5, 0.5); knob.Position = UDim2.new((Settings[settingKey]-min)/(max-min), 0, 0.5, 0); knob.BackgroundColor3 = Color3.fromRGB(150, 100, 255)
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+    local draggingS = false
+    knob.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then draggingS = true end end)
+    UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then draggingS = false end end)
+    RunService.RenderStepped:Connect(function()
+        if draggingS then
+            local x = math.clamp((UserInputService:GetMouseLocation().X - sliderBar.AbsolutePosition.X) / sliderBar.AbsoluteSize.X, 0, 1)
+            knob.Position = UDim2.new(x, 0, 0.5, 0)
+            local val = isFloat and math.floor((min + (x * (max - min))) * 10) / 10 or math.floor(min + (x * (max - min)))
+            Settings[settingKey] = val; label.Text = name .. ": " .. val
+            if settingKey == "FOV" then FOVCircle.Radius = val end
+            if settingKey == "CameraFOV" then Camera.FieldOfView = val end
+        end
+    end)
+end
+
+local Title = Instance.new("TextLabel", AimbotPage)
+Title.Size = UDim2.new(1, -40, 0, 30); Title.Position = UDim2.new(0, 20, 0, 5); Title.Text = "Aimbot & Trigger"; Title.TextColor3 = Color3.new(1, 1, 1); Title.TextSize = 24; Title.Font = Enum.Font.SourceSansBold; Title.TextXAlignment = Enum.TextXAlignment.Left; Title.BackgroundTransparency = 1
+
+local DropBtn = Instance.new("TextButton", AimbotPage)
+DropBtn.Size = UDim2.new(1, -40, 0, 32); DropBtn.Position = UDim2.new(0, 20, 0, 35); DropBtn.BackgroundColor3 = Color3.fromRGB(50, 40, 75); DropBtn.Text = "  Target: 머리"; DropBtn.TextColor3 = Color3.new(1, 1, 1); DropBtn.TextXAlignment = Enum.TextXAlignment.Left; DropBtn.ZIndex = 10; Instance.new("UICorner", DropBtn)
+local DropFrame = Instance.new("Frame", AimbotPage); DropFrame.Size = UDim2.new(1, -40, 0, 0); DropFrame.Position = UDim2.new(0, 20, 0, 70); DropFrame.BackgroundColor3 = Color3.fromRGB(45, 35, 65); DropFrame.ClipsDescendants = true; DropFrame.ZIndex = 100; Instance.new("UICorner", DropFrame)
+
+DropFrame.Active = true 
+
+local parts = {{"Head", "머리"}, {"HumanoidRootPart", "몸통"}, {"LeftHand", "왼팔"}, {"RightHand", "오른팔"}}
+for i, p in ipairs(parts) do
+    local b = Instance.new("TextButton", DropFrame); b.Size = UDim2.new(1, 0, 0, 25); b.Position = UDim2.new(0, 0, 0, (i-1)*25); b.Text = "  " .. p[2]; b.BackgroundColor3 = Color3.fromRGB(55, 45, 80); b.TextColor3 = Color3.new(1, 1, 1); b.TextXAlignment = Enum.TextXAlignment.Left; b.ZIndex = 101
+    b.MouseButton1Click:Connect(function() 
+        Settings.TargetPart = p[1]; 
+        DropBtn.Text = "  Target: " .. p[2]; 
+        DropdownOpen = false; 
+        DropFrame:TweenSize(UDim2.new(1, -40, 0, 0), "Out", "Quad", 0.1, true)
+        InputBlocker.Visible = false -- 블로커 해제
+        DropBtn.ZIndex = 10 -- ZIndex 복구
+    end)
+end
+DropBtn.MouseButton1Click:Connect(function() 
+    DropdownOpen = not DropdownOpen; 
+    TypeDropdownOpen = false; HealthDropdownOpen = false; TriggerDropdownOpen = false; TargetDistDropdownOpen = false; TeleportDropdownOpen = false
+    
+    InputBlocker.Visible = DropdownOpen
+    DropBtn.ZIndex = DropdownOpen and 90 or 10 -- 열릴 때 블로커(85)보다 높게 설정
+
+    game:GetService("TweenService"):Create(DropFrame, TweenInfo.new(0.1), {Size = DropdownOpen and UDim2.new(1, -40, 0, #parts * 25) or UDim2.new(1, -40, 0, 0)}):Play() 
+end)
+
+local TypeDropBtn = Instance.new("TextButton", AimbotPage)
+TypeDropBtn.Size = UDim2.new(1, -40, 0, 32); TypeDropBtn.Position = UDim2.new(0, 20, 0, 72); TypeDropBtn.BackgroundColor3 = Color3.fromRGB(50, 40, 75); TypeDropBtn.Text = "  Type: Mouse"; TypeDropBtn.TextColor3 = Color3.new(1, 1, 1); TypeDropBtn.TextXAlignment = Enum.TextXAlignment.Left; TypeDropBtn.ZIndex = 5; Instance.new("UICorner", TypeDropBtn)
+local TypeDropFrame = Instance.new("Frame", AimbotPage); TypeDropFrame.Size = UDim2.new(1, -40, 0, 0); TypeDropFrame.Position = UDim2.new(0, 20, 0, 107); TypeDropFrame.BackgroundColor3 = Color3.fromRGB(45, 35, 65); TypeDropFrame.ClipsDescendants = true; TypeDropFrame.ZIndex = 90; Instance.new("UICorner", TypeDropFrame)
+
+TypeDropFrame.Active = true
+
+local types = {{"Camera", "Camera (화면 고정)"}, {"Mouse", "Mouse (마우스 고정)"}}
+for i, t in ipairs(types) do
+    local b = Instance.new("TextButton", TypeDropFrame); b.Size = UDim2.new(1, 0, 0, 25); b.Position = UDim2.new(0, 0, 0, (i-1)*25); b.Text = "  " .. t[2]; b.BackgroundColor3 = Color3.fromRGB(55, 45, 80); b.TextColor3 = Color3.new(1, 1, 1); b.ZIndex = 91
+    b.MouseButton1Click:Connect(function() 
+        Settings.AimbotType = t[1]; 
+        TypeDropBtn.Text = "  Type: " .. t[1]; 
+        TypeDropdownOpen = false; 
+        TypeDropFrame:TweenSize(UDim2.new(1, -40, 0, 0), "Out", "Quad", 0.1, true)
+        InputBlocker.Visible = false
+        TypeDropBtn.ZIndex = 5
+    end)
+end
+TypeDropBtn.MouseButton1Click:Connect(function() 
+    TypeDropdownOpen = not TypeDropdownOpen; 
+    DropdownOpen = false; HealthDropdownOpen = false; TriggerDropdownOpen = false; TargetDistDropdownOpen = false; TeleportDropdownOpen = false
+    
+    InputBlocker.Visible = TypeDropdownOpen
+    TypeDropBtn.ZIndex = TypeDropdownOpen and 90 or 5
+
+    game:GetService("TweenService"):Create(TypeDropFrame, TweenInfo.new(0.1), {Size = TypeDropdownOpen and UDim2.new(1, -40, 0, #types * 25) or UDim2.new(1, -40, 0, 0)}):Play() 
+end)
+
+local TargetDistDropBtn = Instance.new("TextButton", AimbotPage)
+TargetDistDropBtn.Size = UDim2.new(1, -40, 0, 32); TargetDistDropBtn.Position = UDim2.new(0, 20, 0, 110); TargetDistDropBtn.BackgroundColor3 = Color3.fromRGB(50, 40, 75); TargetDistDropBtn.Text = "  Target Distance Check: " .. Settings.TargetDistanceCheck; TargetDistDropBtn.TextColor3 = Color3.new(1, 1, 1); TargetDistDropBtn.TextXAlignment = Enum.TextXAlignment.Left; TargetDistDropBtn.ZIndex = 5; Instance.new("UICorner", TargetDistDropBtn)
+local TargetDistDropFrame = Instance.new("Frame", AimbotPage); TargetDistDropFrame.Size = UDim2.new(1, -40, 0, 0); TargetDistDropFrame.Position = UDim2.new(0, 20, 0, 145); TargetDistDropFrame.BackgroundColor3 = Color3.fromRGB(45, 35, 65); TargetDistDropFrame.ClipsDescendants = true; TargetDistDropFrame.ZIndex = 90; Instance.new("UICorner", TargetDistDropFrame)
+
+TargetDistDropFrame.Active = true
+
+local targetDistOptions = {{"Mouse", "Mouse"}, {"World", "World"}}
+for i, t in ipairs(targetDistOptions) do
+    local b = Instance.new("TextButton", TargetDistDropFrame); b.Size = UDim2.new(1, 0, 0, 25); b.Position = UDim2.new(0, 0, 0, (i-1)*25); b.Text = "  " .. t[2]; b.BackgroundColor3 = Color3.fromRGB(55, 45, 80); b.TextColor3 = Color3.new(1, 1, 1); b.ZIndex = 91
+    b.MouseButton1Click:Connect(function()
+        Settings.TargetDistanceCheck = t[1]
+        TargetDistDropBtn.Text = "  Target Distance Check: " .. Settings.TargetDistanceCheck
+        TargetDistDropdownOpen = false
+        TargetDistDropFrame:TweenSize(UDim2.new(1, -40, 0, 0), "Out", "Quad", 0.1, true)
+        InputBlocker.Visible = false
+        TargetDistDropBtn.ZIndex = 5
+    end)
+end
+TargetDistDropBtn.MouseButton1Click:Connect(function()
+    TargetDistDropdownOpen = not TargetDistDropdownOpen
+    DropdownOpen = false; TypeDropdownOpen = false; HealthDropdownOpen = false; TriggerDropdownOpen = false; TeleportDropdownOpen = false
+    
+    InputBlocker.Visible = TargetDistDropdownOpen
+    TargetDistDropBtn.ZIndex = TargetDistDropdownOpen and 90 or 5
+
+    game:GetService("TweenService"):Create(TargetDistDropFrame, TweenInfo.new(0.1), {Size = TargetDistDropdownOpen and UDim2.new(1, -40, 0, #targetDistOptions * 25) or UDim2.new(1, -40, 0, 0)}):Play()
+end)
+
+CreateToggle(AimbotPage, "Aimbot Enabled", "AimbotEnabled", 160) 
+CreateToggle(AimbotPage, "Hard Sticky", "Sticky", 190); CreateToggle(AimbotPage, "Dead Check", "DeadCheck", 220); CreateToggle(AimbotPage, "Wall Check", "WallCheck", 250); CreateToggle(AimbotPage, "Team Check", "TeamCheck", 280); CreateToggle(AimbotPage, "FF Check", "ForceFieldCheck", 310)
+
+-- Trigger Bot Dropdown Fix --
+local TrigDropBtn = Instance.new("TextButton", AimbotPage)
+TrigDropBtn.Size = UDim2.new(1, -40, 0, 32); TrigDropBtn.Position = UDim2.new(0, 20, 0, 340); TrigDropBtn.BackgroundColor3 = Color3.fromRGB(50, 40, 75); TrigDropBtn.Text = "  TriggerBot: None"; TrigDropBtn.TextColor3 = Color3.new(1, 1, 1); TrigDropBtn.TextXAlignment = Enum.TextXAlignment.Left; TrigDropBtn.ZIndex = 4; Instance.new("UICorner", TrigDropBtn)
+local TrigDropFrame = Instance.new("Frame", AimbotPage); TrigDropFrame.Size = UDim2.new(1, -40, 0, 0); TrigDropFrame.Position = UDim2.new(0, 20, 0, 375); TrigDropFrame.BackgroundColor3 = Color3.fromRGB(45, 35, 65); TrigDropFrame.ClipsDescendants = true; 
+-- [FIX] Trigger Dropdown ZIndex increased to 110 (above InputBlocker 85)
+TrigDropFrame.ZIndex = 110; 
+Instance.new("UICorner", TrigDropFrame)
+
+TrigDropFrame.Active = true
+
+local trigModes = {{"None", "꺼짐 (None)"}, {"FOV", "FOV 내부 (FOV)"}, {"180", "180도 (180)"}}
+for i, m in ipairs(trigModes) do
+    local b = Instance.new("TextButton", TrigDropFrame); b.Size = UDim2.new(1, 0, 0, 25); b.Position = UDim2.new(0, 0, 0, (i-1)*25); b.Text = "  " .. m[2]; b.BackgroundColor3 = Color3.fromRGB(55, 45, 80); b.TextColor3 = Color3.new(1, 1, 1); 
+    -- [FIX] Button ZIndex increased to 111
+    b.ZIndex = 111 
+    b.MouseButton1Click:Connect(function() 
+        Settings.TriggerBotMode = m[1]; 
+        if m[1] ~= "None" then Settings.LastTriggerMode = m[1] end 
+        TrigDropBtn.Text = "  TriggerBot: " .. m[1]; 
+        TriggerDropdownOpen = false; 
+        TrigDropFrame:TweenSize(UDim2.new(1, -40, 0, 0), "Out", "Quad", 0.1, true)
+        InputBlocker.Visible = false
+        TrigDropBtn.ZIndex = 4
+    end)
+end
+TrigDropBtn.MouseButton1Click:Connect(function() 
+    TriggerDropdownOpen = not TriggerDropdownOpen; 
+    DropdownOpen = false; TypeDropdownOpen = false; HealthDropdownOpen = false; TargetDistDropdownOpen = false; TeleportDropdownOpen = false
+    
+    InputBlocker.Visible = TriggerDropdownOpen
+    -- [FIX] Trigger Button ZIndex increased to 110 when open
+    TrigDropBtn.ZIndex = TriggerDropdownOpen and 110 or 4 
+
+    game:GetService("TweenService"):Create(TrigDropFrame, TweenInfo.new(0.1), {Size = TriggerDropdownOpen and UDim2.new(1, -40, 0, #trigModes * 25) or UDim2.new(1, -40, 0, 0)}):Play() 
+end)
+
+-- Reorganized Buttons to prevent overlap and place Aimbot Key above Toggle Key
+local BindBtn = Instance.new("TextButton", AimbotPage);
+BindBtn.Size = UDim2.new(1, -40, 0, 30); BindBtn.Position = UDim2.new(0, 20, 0, 380); BindBtn.BackgroundColor3 = Color3.fromRGB(60, 50, 90); BindBtn.Text = "Aimbot Key: MB2"; BindBtn.TextColor3 = Color3.new(1, 1, 1); Instance.new("UICorner", BindBtn)
+BindBtn.MouseButton1Click:Connect(function() Settings.IsBindingLock = true; BindBtn.Text = "Press Any Key..." end)
+
+local ToggleKeyBtn = Instance.new("TextButton", AimbotPage);
+ToggleKeyBtn.Size = UDim2.new(1, -40, 0, 30); ToggleKeyBtn.Position = UDim2.new(0, 20, 0, 415); ToggleKeyBtn.BackgroundColor3 = Color3.fromRGB(60, 50, 90); ToggleKeyBtn.Text = "GUI Toggle Key: RShift"; ToggleKeyBtn.TextColor3 = Color3.new(1, 1, 1); Instance.new("UICorner", ToggleKeyBtn)
+ToggleKeyBtn.MouseButton1Click:Connect(function() Settings.IsBindingToggle = true; ToggleKeyBtn.Text = "Press Any Key..." end)
+
+local TriggerBindBtn = Instance.new("TextButton", AimbotPage);
+TriggerBindBtn.Size = UDim2.new(1, -40, 0, 30); TriggerBindBtn.Position = UDim2.new(0, 20, 0, 450); TriggerBindBtn.BackgroundColor3 = Color3.fromRGB(60, 50, 90); TriggerBindBtn.Text = "Trigger Toggle Key: T"; TriggerBindBtn.TextColor3 = Color3.new(1, 1, 1); Instance.new("UICorner", TriggerBindBtn)
+TriggerBindBtn.MouseButton1Click:Connect(function() Settings.IsBindingTrigger = true; TriggerBindBtn.Text = "Press Any Key..." end)
+
+CreateToggle(AimbotPage, "Target Highlight", "TargetHighlightEnabled", 485)
+CreateToggle(AimbotPage, "FOV Circle Visible", "FOVCircleVisible", 515, function(val) FOVCircle.Visible = val end)
+CreateSlider(AimbotPage, "FOV", "FOV", 545, 0, 800)
+CreateSlider(AimbotPage, "Smooth", "Smoothing", 585, 0, 20)
+CreateSlider(AimbotPage, "Trigger Delay (s)", "TriggerDelay", 625, 0, 5, true)
+CreateSlider(AimbotPage, "Aimbot Distance Check", "TriggerDistance", 665, 10, 10000)
+
+local EspTitle = Instance.new("TextLabel", EspPage); EspTitle.Size = UDim2.new(1, -40, 0, 30); EspTitle.Position = UDim2.new(0, 20, 0, 5); EspTitle.Text = "Visuals (ESP)"; EspTitle.TextColor3 = Color3.new(1, 1, 1); EspTitle.TextSize = 24; EspTitle.Font = Enum.Font.SourceSansBold; EspTitle.TextXAlignment = Enum.TextXAlignment.Left; EspTitle.BackgroundTransparency = 1
+CreateToggle(EspPage, "Skeleton ESP", "SkeletonEnabled", 40); CreateToggle(EspPage, "Box ESP", "BoxEnabled", 70); CreateToggle(EspPage, "Name ESP", "NameEnabled", 100)
+local HealthDropBtn = Instance.new("TextButton", EspPage); HealthDropBtn.Size = UDim2.new(1, -40, 0, 32); HealthDropBtn.Position = UDim2.new(0, 20, 0, 130); HealthDropBtn.BackgroundColor3 = Color3.fromRGB(50, 40, 75); HealthDropBtn.Text = "  Health: None"; HealthDropBtn.TextColor3 = Color3.new(1, 1, 1); HealthDropBtn.TextXAlignment = Enum.TextXAlignment.Left; HealthDropBtn.ZIndex = 10; Instance.new("UICorner", HealthDropBtn)
+local HealthDropFrame = Instance.new("Frame", EspPage); HealthDropFrame.Size = UDim2.new(1, -40, 0, 0); HealthDropFrame.Position = UDim2.new(0, 20, 0, 165); HealthDropFrame.BackgroundColor3 = Color3.fromRGB(45, 35, 65); HealthDropFrame.ClipsDescendants = true; HealthDropFrame.ZIndex = 100; Instance.new("UICorner", HealthDropFrame)
+
+HealthDropFrame.Active = true
+
+local healthOptions = {{"None", "꺼짐 (None)"}, {"Bar", "바 만 (Bar)"}, {"Text", "텍스트 만 (Text)"}, {"Both", "모두 (Both)"}}
+for i, h in ipairs(healthOptions) do
+    local b = Instance.new("TextButton", HealthDropFrame); b.Size = UDim2.new(1, 0, 0, 25); b.Position = UDim2.new(0, 0, 0, (i-1)*25); b.Text = "  " .. h[2]; b.BackgroundColor3 = Color3.fromRGB(55, 45, 80); b.TextColor3 = Color3.new(1, 1, 1); b.TextXAlignment = Enum.TextXAlignment.Left; b.ZIndex = 101
+    b.MouseButton1Click:Connect(function() 
+        Settings.HealthMode = h[1]; 
+        HealthDropBtn.Text = "  Health: " .. h[1]; 
+        HealthDropdownOpen = false; 
+        HealthDropFrame:TweenSize(UDim2.new(1, -40, 0, 0), "Out", "Quad", 0.1, true)
+        InputBlocker.Visible = false
+        HealthDropBtn.ZIndex = 10
+    end)
+end
+HealthDropBtn.MouseButton1Click:Connect(function() 
+    HealthDropdownOpen = not HealthDropdownOpen; 
+    DropdownOpen = false; TypeDropdownOpen = false; TriggerDropdownOpen = false; TargetDistDropdownOpen = false; TeleportDropdownOpen = false
+    
+    InputBlocker.Visible = HealthDropdownOpen
+    HealthDropBtn.ZIndex = HealthDropdownOpen and 90 or 10
+
+    game:GetService("TweenService"):Create(HealthDropFrame, TweenInfo.new(0.1), {Size = HealthDropdownOpen and UDim2.new(1, -40, 0, #healthOptions * 25) or UDim2.new(1, -40, 0, 0)}):Play() 
+end)
+CreateToggle(EspPage, "Head Dot", "HeadDotEnabled", 170); CreateToggle(EspPage, "Chams", "ChamsEnabled", 200); CreateSlider(EspPage, "ESP Distance", "ESPDistance", 240, 10, 25000)
+
+local PlayerTitle = Instance.new("TextLabel", PlayerPage); PlayerTitle.Size = UDim2.new(1, -40, 0, 30); PlayerTitle.Position = UDim2.new(0, 20, 0, 5); PlayerTitle.Text = "Character Settings"; PlayerTitle.TextColor3 = Color3.new(1, 1, 1); PlayerTitle.TextSize = 24; PlayerTitle.Font = Enum.Font.SourceSansBold; PlayerTitle.TextXAlignment = Enum.TextXAlignment.Left; PlayerTitle.BackgroundTransparency = 1
+
+local function StopJerk()
+    for _, conn in pairs(JerkAnims) do conn:Disconnect() end
+    JerkAnims = {}
+    if R15Track then R15Track:Stop(); R15Track = nil end
+end
+
+local function PlayJerkAnim(id, startPos, endPos)
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        local anim = Instance.new("Animation")
+        anim.AnimationId = "rbxassetid://" .. id
+        local track = hum:LoadAnimation(anim)
+        
+        local conn = RunService.RenderStepped:Connect(function()
+            if Settings.JerkEnabled then
+                if endPos <= track.TimePosition or not track.IsPlaying then
+                    track:Play()
+                    track.TimePosition = startPos
+                end
+            else
+                track:Stop()
+            end
+        end)
+        table.insert(JerkAnims, conn)
+        track:Play()
+        track.TimePosition = startPos
+    end
+end
+
+local function PlayJerkR15()
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        local anim = Instance.new("Animation")
+        anim.AnimationId = "rbxassetid://698251653"
+        R15Track = hum:LoadAnimation(anim)
+        R15Track.Looped = false
+        R15Track:Play()
+        R15Track.TimePosition = 0.58
+        R15Track:AdjustSpeed(0.4)
+        
+        task.spawn(function()
+            while R15Track and R15Track.IsPlaying and Settings.JerkR15Enabled do
+                if R15Track.TimePosition >= 0.63 then
+                    R15Track.TimePosition = 0.58
+                end
+                task.wait()
+            end
+            if R15Track then R15Track:Stop() end
+        end)
+    end
+end
+
+CreateToggle(PlayerPage, "Jerk R6 Mode", "JerkEnabled", 60, function(val)
+    if val then Settings.JerkR15Enabled = false; StopJerk(); PlayJerkAnim("72042024", 0.5, 0.9); PlayJerkAnim("168268306", 1, 1.001) else StopJerk() end
+end)
+CreateToggle(PlayerPage, "Jerk R15 Mode", "JerkR15Enabled", 90, function(val)
+    if val then Settings.JerkEnabled = false; StopJerk(); PlayJerkR15() else StopJerk() end
+end)
+
+CreateSlider(PlayerPage, "WalkSpeed", "WalkSpeed", 125, 1, 200) 
+CreateSlider(PlayerPage, "JumpPower", "JumpPower", 170, 1, 500) 
+CreateToggle(PlayerPage, "Lock Speed & JumpPower", "LockSpeedJump", 215)
+
+CreateToggle(PlayerPage, "Fly Enabled", "FlyEnabled", 255)
+CreateSlider(PlayerPage, "Fly Speed", "FlySpeed", 285, 10, 500)
+CreateToggle(PlayerPage, "Noclip", "NoclipEnabled", 330)
+CreateToggle(PlayerPage, "TpWalk Enabled", "TpWalkEnabled", 360)
+CreateSlider(PlayerPage, "TpWalk Speed", "TpWalkSpeed", 390, 0.1, 5, true)
+CreateToggle(PlayerPage, "Infinite Jump", "InfiniteJumpEnabled", 430)
+CreateSlider(PlayerPage, "Camera FOV", "CameraFOV", 470, 1, 120)
+CreateToggle(PlayerPage, "Lock FOV", "LockFOV", 500)
+
+CreateToggle(PlayerPage, "Third Person", "ThirdPersonEnabled", 30, function(val)
+    if val then
+        if not SavedCameraState then
+            pcall(function()
+                if LocalPlayer then
+                    SavedCameraState = {
+                        Mode = LocalPlayer.CameraMode,
+                        MaxZoom = LocalPlayer.CameraMaxZoomDistance,
+                        MinZoom = LocalPlayer.CameraMinZoomDistance
+                    }
+                end
+            end)
+        end
+        UnlockCamera()
+    else
+        if UnlockConnection then
+            pcall(function() UnlockConnection:Disconnect() end)
+            UnlockConnection = nil
+        end
+        
+        if SavedCameraState then
+            pcall(function()
+                LocalPlayer.CameraMode = SavedCameraState.Mode
+                LocalPlayer.CameraMaxZoomDistance = SavedCameraState.MaxZoom
+                LocalPlayer.CameraMinZoomDistance = SavedCameraState.MinZoom
+            end)
+            SavedCameraState = nil 
+        else
+            LocalPlayer.CameraMode = Enum.CameraMode.Classic
+            LocalPlayer.CameraMaxZoomDistance = 128
+            LocalPlayer.CameraMinZoomDistance = 0.5
+        end
+    end
+end)
+
+local TeleportTitle = Instance.new("TextLabel", TeleportPage)
+TeleportTitle.Size = UDim2.new(1, -40, 0, 30); TeleportTitle.Position = UDim2.new(0, 20, 0, 5); TeleportTitle.Text = "Teleport & Spectate"; TeleportTitle.TextColor3 = Color3.new(1, 1, 1); TeleportTitle.TextSize = 24; TeleportTitle.Font = Enum.Font.SourceSansBold; TeleportTitle.TextXAlignment = Enum.TextXAlignment.Left; TeleportTitle.BackgroundTransparency = 1
+
+local TeleportDropBtn = Instance.new("TextButton", TeleportPage)
+TeleportDropBtn.Size = UDim2.new(1, -40, 0, 32); TeleportDropBtn.Position = UDim2.new(0, 20, 0, 40); TeleportDropBtn.BackgroundColor3 = Color3.fromRGB(50, 40, 75); TeleportDropBtn.Text = "  Select Player"; TeleportDropBtn.TextColor3 = Color3.new(1, 1, 1); TeleportDropBtn.TextXAlignment = Enum.TextXAlignment.Left; TeleportDropBtn.ZIndex = 5; Instance.new("UICorner", TeleportDropBtn)
+local TeleportDropFrame = Instance.new("Frame", TeleportPage); TeleportDropFrame.Size = UDim2.new(1, -40, 0, 0); TeleportDropFrame.Position = UDim2.new(0, 20, 0, 75); TeleportDropFrame.BackgroundColor3 = Color3.fromRGB(45, 35, 65); TeleportDropFrame.ClipsDescendants = true; TeleportDropFrame.ZIndex = 110; Instance.new("UICorner", TeleportDropFrame)
+
+TeleportDropFrame.Active = true
+
+local TeleportListFrame = Instance.new("ScrollingFrame", TeleportDropFrame)
+TeleportListFrame.Size = UDim2.new(1, 0, 0, 200)
+TeleportListFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+TeleportListFrame.ScrollBarThickness = 6
+TeleportListFrame.BackgroundTransparency = 1
+TeleportListFrame.Position = UDim2.new(0, 0, 0, 0)
+
+local selectedTeleportTarget = nil
+local teleportButtons = {}
+
+local function refreshTeleportList()
+    for _, v in pairs(TeleportListFrame:GetChildren()) do
+        if v:IsA("TextButton") then v:Destroy() end
+    end
+    teleportButtons = {}
+    local y = 0
+    for i, p in ipairs(Players:GetPlayers()) do
+        local btn = Instance.new("TextButton", TeleportListFrame)
+        btn.Size = UDim2.new(1, -10, 0, 30)
+        btn.Position = UDim2.new(0, 5, 0, y)
+        btn.BackgroundColor3 = Color3.fromRGB(55, 45, 80)
+        btn.TextColor3 = Color3.new(1,1,1)
+        btn.TextXAlignment = Enum.TextXAlignment.Left
+        btn.Text = "  " .. p.Name .. " (" .. p.DisplayName .. ")"
+        btn.ZIndex = 112
+        btn.AutoButtonColor = true
+        local connection
+        btn.MouseButton1Click:Connect(function()
+            selectedTeleportTarget = p
+            TeleportDropBtn.Text = "  Selected: " .. p.Name .. " (" .. p.DisplayName .. ")"
+            for _, b in pairs(teleportButtons) do b.BackgroundColor3 = Color3.fromRGB(55,45,80) end
+            btn.BackgroundColor3 = Color3.fromRGB(80, 120, 180)
+        end)
+        teleportButtons[#teleportButtons+1] = btn
+        y = y + 35
+    end
+    TeleportListFrame.CanvasSize = UDim2.new(0, 0, 0, y)
+end
+
+local TeleportBtn = Instance.new("TextButton", TeleportPage)
+TeleportBtn.Size = UDim2.new(0.45, -10, 0, 40)
+TeleportBtn.Position = UDim2.new(0, 20, 0, 80) -- Initial position under dropdown
+TeleportBtn.BackgroundColor3 = Color3.fromRGB(60, 50, 90)
+TeleportBtn.Text = "Teleport"
+TeleportBtn.TextColor3 = Color3.new(1,1,1)
+TeleportBtn.Font = Enum.Font.SourceSansBold
+TeleportBtn.TextSize = 18
+TeleportBtn.ZIndex = 110 
+Instance.new("UICorner", TeleportBtn)
+
+local SpectateBtn = Instance.new("TextButton", TeleportPage)
+SpectateBtn.Size = UDim2.new(0.45, -10, 0, 40)
+SpectateBtn.Position = UDim2.new(0.5, 10, 0, 80) -- Initial position under dropdown
+SpectateBtn.BackgroundColor3 = Color3.fromRGB(60, 120, 60)
+SpectateBtn.Text = "Spectate"
+SpectateBtn.TextColor3 = Color3.new(1,1,1)
+SpectateBtn.Font = Enum.Font.SourceSansBold
+SpectateBtn.TextSize = 18
+SpectateBtn.ZIndex = 110 
+Instance.new("UICorner", SpectateBtn)
+
+TeleportDropBtn.MouseButton1Click:Connect(function()
+    local open = TeleportDropFrame.Size.Y.Offset ~= 0
+    TeleportDropdownOpen = not open
+    
+    DropdownOpen = false; TypeDropdownOpen = false; HealthDropdownOpen = false; TriggerDropdownOpen = false; TargetDistDropdownOpen = false
+
+    local tweenInfo = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    
+    InputBlocker.Visible = TeleportDropdownOpen
+    TeleportDropBtn.ZIndex = TeleportDropdownOpen and 110 or 5
+
+    if open then
+        game:GetService("TweenService"):Create(TeleportDropFrame, tweenInfo, {Size = UDim2.new(1, -40, 0, 0)}):Play()
+        game:GetService("TweenService"):Create(TeleportBtn, tweenInfo, {Position = UDim2.new(0, 20, 0, 80)}):Play()
+        game:GetService("TweenService"):Create(SpectateBtn, tweenInfo, {Position = UDim2.new(0.5, 10, 0, 80)}):Play()
+    else
+        refreshTeleportList()
+        game:GetService("TweenService"):Create(TeleportDropFrame, tweenInfo, {Size = UDim2.new(1, -40, 0, 220)}):Play()
+        game:GetService("TweenService"):Create(TeleportBtn, tweenInfo, {Position = UDim2.new(0, 20, 0, 305)}):Play()
+        game:GetService("TweenService"):Create(SpectateBtn, tweenInfo, {Position = UDim2.new(0.5, 10, 0, 305)}):Play()
+    end
+end)
+
+local spectating = false
+local spectateTarget = nil
+local restoreCameraState = nil
+
+local function stopSpectating()
+    if not spectating then return end
+    spectating = false
+    spectateTarget = nil
+    SpectateBtn.Text = "Spectate"
+    pcall(function()
+        if restoreCameraState then
+            if restoreCameraState.CameraSubject then
+                Camera.CameraSubject = restoreCameraState.CameraSubject
+            end
+            if restoreCameraState.CameraType then
+                Camera.CameraType = restoreCameraState.CameraType
+            end
+            if restoreCameraState.PlayerCameraMode then
+                LocalPlayer.CameraMode = restoreCameraState.PlayerCameraMode
+            end
+        else
+            if LocalPlayer and LocalPlayer.Character then
+                local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                if hum then Camera.CameraSubject = hum end
+            end
+            Camera.CameraType = Enum.CameraType.Custom
+        end
+    end)
+    restoreCameraState = nil
+end
+
+local function startSpectating(targetPlayer)
+    if not targetPlayer or not targetPlayer.Character then return end
+    local targetHum = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
+    if not targetHum then return end
+    restoreCameraState = {
+        CameraSubject = Camera.CameraSubject,
+        CameraType = Camera.CameraType,
+        PlayerCameraMode = (LocalPlayer and LocalPlayer.CameraMode) or nil
+    }
+    pcall(function()
+        Camera.CameraSubject = targetHum
+        Camera.CameraType = Enum.CameraType.Custom
+        if LocalPlayer then
+            LocalPlayer.CameraMode = Enum.CameraMode.Classic
+            LocalPlayer.CameraMinZoomDistance = 10
+            LocalPlayer.CameraMaxZoomDistance = 100
+        end
+    end)
+    spectating = true
+    spectateTarget = targetPlayer
+    SpectateBtn.Text = "Stop Spectate"
+end
+
+TeleportBtn.MouseButton1Click:Connect(function()
+    if not selectedTeleportTarget then
+        ShowMenuNotification("플레이어를 선택하세요.")
+        return
+    end
+    if not selectedTeleportTarget.Character then
+        ShowMenuNotification("선택한 플레이어의 캐릭터가 없습니다.")
+        return
+    end
+    local targetHRP = selectedTeleportTarget.Character:FindFirstChild("HumanoidRootPart") or selectedTeleportTarget.Character:FindFirstChild("Torso") or selectedTeleportTarget.Character:FindFirstChild("UpperTorso")
+    
+    local myChar = LocalPlayer.Character
+    local myHRP = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChild("Torso") or myChar:FindFirstChild("UpperTorso"))
+
+    if not myChar or not myHRP then
+        ShowMenuNotification("당신의 캐릭터가 준비되지 않았습니다.")
+        return
+    end
+    
+    if targetHRP then
+        -- [FIX] Teleport 5 studs BEHIND the target
+        pcall(function()
+             myChar:PivotTo(targetHRP.CFrame * CFrame.new(0, 0, 5))
+        end)
+        ShowMenuNotification(selectedTeleportTarget.Name .. " 뒤로 이동했습니다.")
+    else
+        ShowMenuNotification("대상 플레이어의 위치를 찾을 수 없습니다.")
+    end
+end)
+
+SpectateBtn.MouseButton1Click:Connect(function()
+    if spectating then
+        stopSpectating()
+        return
+    end
+    if not selectedTeleportTarget then
+        ShowMenuNotification("플레이어를 선택하세요.")
+        return
+    end
+    if not selectedTeleportTarget.Character then
+        ShowMenuNotification("선택한 플레이어의 캐릭터가 없습니다.")
+        return
+    end
+    startSpectating(selectedTeleportTarget)
+end)
+
+Players.PlayerRemoving:Connect(function(p)
+    if spectating and spectateTarget == p then
+        stopSpectating()
+        ShowMenuNotification("관전하던 플레이어가 나갔습니다. 관전이 중지되었습니다.")
+    end
+    refreshTeleportList()
+end)
+Players.PlayerAdded:Connect(function()
+    refreshTeleportList()
+end)
+
+refreshTeleportList()
+
+local SettingsTitle = Instance.new("TextLabel", SettingsPage); SettingsTitle.Size = UDim2.new(1, -40, 0, 30); SettingsTitle.Position = UDim2.new(0, 20, 0, 5); SettingsTitle.Text = "Menu Settings"; SettingsTitle.TextColor3 = Color3.new(1, 1, 1); SettingsTitle.TextSize = 24; SettingsTitle.Font = Enum.Font.SourceSansBold; SettingsTitle.TextXAlignment = Enum.TextXAlignment.Left; SettingsTitle.BackgroundTransparency = 1
+
+CreateToggle(SettingsPage, "Menu Notifications", "NotificationsEnabled", 40)
+
+local ResetBtn = Instance.new("TextButton", SettingsPage); ResetBtn.Size = UDim2.new(1, -40, 0, 30); ResetBtn.Position = UDim2.new(0, 20, 0, 75); ResetBtn.BackgroundColor3 = Color3.fromRGB(60, 50, 90); ResetBtn.Text = "Reset GUI Position"; ResetBtn.TextColor3 = Color3.new(1, 1, 1); Instance.new("UICorner", ResetBtn)
+ResetBtn.MouseButton1Click:Connect(function() MainFrame.Position = UDim2.new(0.5, -175, 0.5, -360) end)
+
+local function IsVisibleESP(part, char)
+    local rayParam = RaycastParams.new(); rayParam.FilterDescendantsInstances = {LocalPlayer.Character, char}; rayParam.FilterType = Enum.RaycastFilterType.Exclude
+    local res = workspace:Raycast(Camera.CFrame.Position, (part.Position - Camera.CFrame.Position), rayParam)
+    return res == nil
+end
+
+local flyVelocity
+
+local function CreateESP(plr)
+    repeat task.wait() until plr.Character ~= nil and plr.Character:FindFirstChild("Humanoid") ~= nil
+    local limbs = {}; local box = Drawing.new("Square"); local nameTag = Drawing.new("Text"); local healthTag = Drawing.new("Text"); local healthBarOutline = Drawing.new("Square"); local healthBar = Drawing.new("Square"); local headDot = Drawing.new("Circle"); local cham = Instance.new("Highlight")
+    
+    table.insert(AllDrawings, box); table.insert(AllDrawings, nameTag); table.insert(AllDrawings, healthTag); table.insert(AllDrawings, healthBarOutline); table.insert(AllDrawings, healthBar); table.insert(AllDrawings, headDot);
+    
+    box.Thickness = 1; box.Filled = false; box.Color = Color3.new(1,1,1); nameTag.Size = 16; nameTag.Center = true; nameTag.Outline = true; nameTag.Color = Color3.new(1,1,1); healthTag.Size = 14; healthTag.Center = true; healthTag.Outline = true; healthTag.Color = Color3.new(0,1,0); healthBarOutline.Thickness = 1; healthBarOutline.Filled = true; healthBarOutline.Color = Color3.new(0,0,0); healthBar.Thickness = 1; healthBar.Filled = true; healthBar.Color = Color3.new(0,1,0); headDot.Radius = 5; headDot.Filled = true; headDot.Color = Color3.new(1,0,0)
+    local function DrawLine() 
+        local l = Drawing.new("Line"); l.Visible = false; l.Color = Color3.fromRGB(255, 255, 255); l.Thickness = 1.5; l.Transparency = 1; 
+        table.insert(AllDrawings, l)
+        return l 
+    end
+    local function GetLimbs()
+        local isR15 = (plr.Character.Humanoid.RigType == Enum.HumanoidRigType.R15)
+        if isR15 then return {Head_UpperTorso = DrawLine(), UpperTorso_LowerTorso = DrawLine(), UpperTorso_LeftUpperArm = DrawLine(), LeftUpperArm_LeftLowerArm = DrawLine(), LeftLowerArm_LeftHand = DrawLine(), UpperTorso_RightUpperArm = DrawLine(), RightUpperArm_RightLowerArm = DrawLine(), RightLowerArm_RightHand = DrawLine(), LowerTorso_LeftUpperLeg = DrawLine(), LeftUpperLeg_LeftLowerLeg = DrawLine(), LeftLowerLeg_LeftFoot = DrawLine(), LowerTorso_RightUpperLeg = DrawLine(), RightUpperLeg_RightLowerLeg = DrawLine(), RightLowerLeg_RightFoot = DrawLine()} 
+        else return {Head_Spine = DrawLine(), Spine = DrawLine(), LeftArm = DrawLine(), LeftArm_UpperTorso = DrawLine(), RightArm = DrawLine(), RightArm_UpperTorso = DrawLine(), LeftLeg = DrawLine(), LeftLeg_LowerTorso = DrawLine(), RightLeg = DrawLine(), RightLeg_LowerTorso = DrawLine()} end
+    end
+    limbs = GetLimbs()
+    local function SetVisibility(state)
+        for _, v in pairs(limbs) do v.Visible = (state and Settings.SkeletonEnabled) end
+        box.Visible = (state and Settings.BoxEnabled); nameTag.Visible = (state and Settings.NameEnabled)
+        local showBar = (Settings.HealthMode == "Bar" or Settings.HealthMode == "Both"); local showText = (Settings.HealthMode == "Text" or Settings.HealthMode == "Both")
+        healthTag.Visible = (state and showText); healthBarOutline.Visible = (state and showBar); healthBar.Visible = (state and showBar); headDot.Visible = (state and Settings.HeadDotEnabled); cham.Enabled = (state and Settings.ChamsEnabled)
+    end
+    local connection
+    connection = RunService.RenderStepped:Connect(function()
+        local char = plr.Character
+        if char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("Humanoid") and char.Humanoid.Health > 0 then
+            local hum = char.Humanoid; local hrp = char.HumanoidRootPart; local distance = (Camera.CFrame.Position - hrp.Position).Magnitude
+            if distance > Settings.ESPDistance then SetVisibility(false); return end
+            if Settings.TeamCheck and plr.Team == LocalPlayer.Team then SetVisibility(false); return end
+            local pos, vis = Camera:WorldToViewportPoint(hrp.Position)
+            if vis then
+                SetVisibility(true); local sizeY = 3000 / pos.Z; local sizeX = 1800 / pos.Z; local xPos = pos.X - sizeX/2; local yPos = pos.Y - sizeY/2
+                local showBar = (Settings.HealthMode == "Bar" or Settings.HealthMode == "Both"); local showText = (Settings.HealthMode == "Text" or Settings.HealthMode == "Both")
+                if Settings.BoxEnabled or Settings.NameEnabled or showBar or showText then
+                    box.Size = Vector2.new(sizeX, sizeY); box.Position = Vector2.new(xPos, yPos); nameTag.Position = Vector2.new(pos.X, yPos - 20); nameTag.Text = plr.Name
+                    if showBar then local healthPercent = hum.Health / hum.MaxHealth; local barHeight = sizeY * healthPercent; healthBarOutline.Size = Vector2.new(4, sizeY); healthBarOutline.Position = Vector2.new(xPos - 6, yPos); healthBar.Size = Vector2.new(2, barHeight); healthBar.Position = Vector2.new(xPos - 5, yPos + (sizeY - barHeight)); healthBar.Color = Color3.fromHSV(healthPercent * 0.3, 1, 1) end
+                    if showText then healthTag.Text = math.floor(hum.Health); healthTag.Position = Vector2.new(pos.X, yPos - (Settings.NameEnabled and 35 or 20)) end
+                    if plr.Team == LocalPlayer.Team then box.Color = Color3.fromRGB(0, 150, 255); nameTag.Color = Color3.fromRGB(0, 150, 255) else if IsVisibleESP(hrp, char) then box.Color = Color3.fromRGB(255, 0, 0); nameTag.Color = Color3.fromRGB(255, 0, 0) else box.Color = Color3.fromRGB(0, 255, 0); nameTag.Color = Color3.fromRGB(0, 255, 0) end end
+                end
+                if Settings.HeadDotEnabled and char:FindFirstChild("Head") then local hPos = Camera:WorldToViewportPoint(char.Head.Position); headDot.Position = Vector2.new(hPos.X, hPos.Y) end
+                if Settings.ChamsEnabled then cham.Parent = char; cham.OutlineTransparency = 0; cham.FillTransparency = 0.5; if plr.Team == LocalPlayer.Team then cham.FillColor = Color3.fromRGB(0, 0, 255); cham.OccludedFillColor = Color3.fromRGB(0, 0, 255) else if IsVisibleESP(hrp, char) then cham.FillColor = Color3.fromRGB(255, 0, 0) else cham.FillColor = Color3.fromRGB(0, 255, 0) end; cham.OccludedFillColor = cham.FillColor end; cham.OutlineColor = Color3.fromRGB(255, 255, 255) else cham.Parent = nil end
+                if Settings.SkeletonEnabled then
+                    local function W2V(partName) local p = char:FindFirstChild(partName); if p then local v = Camera:WorldToViewportPoint(p.Position); return Vector2.new(v.X, v.Y) end return nil end
+                    if hum.RigType == Enum.HumanoidRigType.R15 then
+                        local H = W2V("Head"); local UT = W2V("UpperTorso"); local LT = W2V("LowerTorso"); local LUA = W2V("LeftUpperArm"); local LLA = W2V("LeftLowerArm"); local LH = W2V("LeftHand"); local RUA = W2V("RightUpperArm"); local RLA = W2V("RightLowerArm"); local RH = W2V("RightHand"); local LUL = W2V("LeftUpperLeg"); local LLL = W2V("LeftLowerLeg"); local LF = W2V("LeftFoot"); local RUL = W2V("RightUpperLeg"); local RLL = W2V("RightLowerLeg"); local RF = W2V("RightFoot")
+                        if H and UT and LT then limbs.Head_UpperTorso.From = H; limbs.Head_UpperTorso.To = UT; limbs.UpperTorso_LowerTorso.From = UT; limbs.UpperTorso_LowerTorso.To = LT; limbs.UpperTorso_LeftUpperArm.From = UT; limbs.UpperTorso_LeftUpperArm.To = LUA; limbs.LeftUpperArm_LeftLowerArm.From = LUA; limbs.LeftUpperArm_LeftLowerArm.To = LLA; limbs.LeftLowerArm_LeftHand.From = LLA; limbs.LeftLowerArm_LeftHand.To = LH; limbs.UpperTorso_RightUpperArm.From = UT; limbs.UpperTorso_RightUpperArm.To = RUA; limbs.RightUpperArm_RightLowerArm.From = RUA; limbs.RightUpperArm_RightLowerArm.To = RLA; limbs.RightLowerArm_RightHand.From = RLA; limbs.RightLowerArm_RightHand.To = RH; limbs.LowerTorso_LeftUpperLeg.From = LT; limbs.LowerTorso_LeftUpperLeg.To = LUL; limbs.LeftUpperLeg_LeftLowerLeg.From = LUL; limbs.LeftUpperLeg_LeftLowerLeg.To = LLL; limbs.LeftLowerLeg_LeftFoot.From = LLL; limbs.LeftLowerLeg_LeftFoot.To = LF; limbs.LowerTorso_RightUpperLeg.From = LT; limbs.LowerTorso_RightUpperLeg.To = RUL; limbs.RightUpperLeg_RightLowerLeg.From = RUL; limbs.RightUpperLeg_RightLowerLeg.To = RLL; limbs.RightLowerLeg_RightFoot.From = RLL; limbs.RightLowerLeg_RightFoot.To = RF end
+                    else
+                        local T = char:FindFirstChild("Torso"); if T then local H = W2V("Head"); local T_H = T.Size.Y/2 - 0.2; local UT_p = Camera:WorldToViewportPoint((T.CFrame * CFrame.new(0, T_H, 0)).p); local LT_p = Camera:WorldToViewportPoint((T.CFrame * CFrame.new(0, -T_H, 0)).p); local UT = Vector2.new(UT_p.X, UT_p.Y); local LT = Vector2.new(LT_p.X, LT_p.Y); local LA = char:FindFirstChild("Left Arm"); local RA = char:FindFirstChild("Right Arm"); local LL = char:FindFirstChild("Left Leg"); local RL = char:FindFirstChild("Right Leg"); if LA and RA and LL and RL then local LUA = Camera:WorldToViewportPoint((LA.CFrame * CFrame.new(0, LA.Size.Y/2-0.2, 0)).p); local LLA = Camera:WorldToViewportPoint((LA.CFrame * CFrame.new(0, -LA.Size.Y/2+0.2, 0)).p); local RUA = Camera:WorldToViewportPoint((RA.CFrame * CFrame.new(0, RA.Size.Y/2-0.2, 0)).p); local RLA = Camera:WorldToViewportPoint((RA.CFrame * CFrame.new(0, -RA.Size.Y/2+0.2, 0)).p); local LUL = Camera:WorldToViewportPoint((LL.CFrame * CFrame.new(0, LL.Size.Y/2-0.2, 0)).p); local LLL = Camera:WorldToViewportPoint((LL.CFrame * CFrame.new(0, -LL.Size.Y/2+0.2, 0)).p); local RUL = Camera:WorldToViewportPoint((RL.CFrame * CFrame.new(0, RL.Size.Y/2-0.2, 0)).p); local RLL = Camera:WorldToViewportPoint((RL.CFrame * CFrame.new(0, -RL.Size.Y/2+0.2, 0)).p); limbs.Head_Spine.From = H; limbs.Head_Spine.To = UT; limbs.Spine.From = UT; limbs.Spine.To = LT; limbs.LeftArm.From = Vector2.new(LUA.X, LUA.Y); limbs.LeftArm.To = Vector2.new(LLA.X, LLA.Y); limbs.LeftArm_UpperTorso.From = UT; limbs.LeftArm_UpperTorso.To = Vector2.new(LUA.X, LUA.Y); limbs.RightArm.From = Vector2.new(RUA.X, RUA.Y); limbs.RightArm.To = Vector2.new(RLA.X, RLA.Y); limbs.RightArm_UpperTorso.From = UT; limbs.RightArm_UpperTorso.To = Vector2.new(RUA.X, RUA.Y); limbs.LeftLeg.From = Vector2.new(LUL.X, LUL.Y); limbs.LeftLeg.To = Vector2.new(LLL.X, LLL.Y); limbs.LeftLeg_LowerTorso.From = LT; limbs.LeftLeg_LowerTorso.To = Vector2.new(LUL.X, LUL.Y); limbs.RightLeg.From = Vector2.new(RUL.X, RUL.Y); limbs.RightLeg.To = Vector2.new(RLL.X, RLL.Y); limbs.RightLeg_LowerTorso.From = LT; limbs.RightLeg_LowerTorso.To = Vector2.new(RUL.X, RUL.Y) end end
+                    end
+                end
+            else SetVisibility(false) end
+        else SetVisibility(false); if not plr.Parent then for _, v in pairs(limbs) do v:Remove() end box:Remove(); nameTag:Remove(); healthTag:Remove(); healthBarOutline:Remove(); healthBar:Remove(); headDot:Remove(); cham:Destroy(); connection:Disconnect() end end
+    end)
+    table.insert(Connections, connection) 
+end
+for _, p in pairs(Players:GetPlayers()) do if p ~= LocalPlayer then CreateESP(p) end end
+Players.PlayerAdded:Connect(function(p) if p ~= LocalPlayer then CreateESP(p) end end)
+
+local UnloadBtn = Instance.new("TextButton", MainFrame); UnloadBtn.Size = UDim2.new(0, 280, 0, 40); UnloadBtn.Position = UDim2.new(0.5, -140, 1, -55); UnloadBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60); UnloadBtn.Text = "UNLOAD SCRIPT"; UnloadBtn.TextColor3 = Color3.new(1, 1, 1); UnloadBtn.Font = Enum.Font.SourceSansBold; UnloadBtn.TextSize = 20; Instance.new("UICorner", UnloadBtn)
+UnloadBtn.MouseButton1Click:Connect(function() 
+    -- 1. 연결 해제 우선 (기능 정지)
+    for _, c in pairs(Connections) do
+        if c then pcall(function() c:Disconnect() end) end
+    end
+    Connections = {} -- Clear connections
+
+    if UnlockConnection then UnlockConnection:Disconnect() end
+    
+    -- 2. 기능 관련 오브젝트만 정리
+    
+    -- Fly 기능 끄기 (생성된 BodyVelocity만 제거)
+    if flyVelocity then 
+        flyVelocity:Destroy() 
+        flyVelocity = nil 
+    end
+
+    -- Noclip 기능 끄기 (충돌 복구)
+    if Settings.NoclipEnabled and LocalPlayer.Character then
+         for _, v in pairs(LocalPlayer.Character:GetDescendants()) do
+            if v:IsA("BasePart") then v.CanCollide = true end
+        end
+    end
+
+    -- 3. 카메라 초기화 (원래대로 되돌리기)
+    pcall(function()
+        Camera.FieldOfView = 70
+        if SavedCameraState then
+             LocalPlayer.CameraMode = SavedCameraState.Mode
+        else
+             LocalPlayer.CameraMode = Enum.CameraMode.Classic
+        end
+        LocalPlayer.CameraMaxZoomDistance = 128
+        LocalPlayer.CameraMinZoomDistance = 0.5
+    end)
+
+    -- 4. 비주얼 제거 (ESP, GUI 등)
+    for _, d in pairs(AllDrawings) do pcall(function() d:Remove() end) end
+    AllDrawings = {}
+    if TargetCham then TargetCham:Destroy() end
+
+    -- 5. GUI 종료
+    if ScreenGui then ScreenGui:Destroy() end
+end)
+
+table.insert(Connections, RunService.Heartbeat:Connect(function()
+    if Settings.LockFOV then
+        Camera.FieldOfView = Settings.CameraFOV
+    end
+
+    local char = LocalPlayer.Character; if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid"); 
+    
+    if hum and Settings.LockSpeedJump then 
+        hum.WalkSpeed = Settings.WalkSpeed
+        hum.JumpPower = Settings.JumpPower 
+    end
+    
+    if Settings.NoclipEnabled then for _, v in pairs(char:GetDescendants()) do if v:IsA("BasePart") then v.CanCollide = false end end end
+end))
+
+table.insert(Connections, RunService.RenderStepped:Connect(function()
+    local char = LocalPlayer.Character; if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+    local hrp = char.HumanoidRootPart
+    if Settings.FlyEnabled then
+        if not flyVelocity then flyVelocity = Instance.new("BodyVelocity", hrp); flyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge) end
+        local moveDir = Vector3.new(0,0,0)
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + Camera.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - Camera.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - Camera.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + Camera.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir = moveDir + Vector3.new(0,1,0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir = moveDir - Vector3.new(0,1,0) end
+        flyVelocity.Velocity = moveDir * Settings.FlySpeed
+    else if flyVelocity then flyVelocity:Destroy(); flyVelocity = nil end end
+    if Settings.TpWalkEnabled then local hum = char:FindFirstChildOfClass("Humanoid"); if hum and hum.MoveDirection.Magnitude > 0 then hrp.CFrame = hrp.CFrame + (hum.MoveDirection * (Settings.TpWalkSpeed * 0.5)) end end
+end))
+
+table.insert(Connections, UserInputService.JumpRequest:Connect(function()
+    if Settings.InfiniteJumpEnabled then
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end))
+
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(0.5)
+    AutoDetectStats()
+    if Settings.JerkEnabled then StopJerk(); PlayJerkAnim("72042024", 0.5, 0.9); PlayJerkAnim("168268306", 1, 1.001)
+    elseif Settings.JerkR15Enabled then StopJerk(); PlayJerkR15() end
+end)
+
+local function Validate(p)
+    if not p or not p.Character then return false end
+    local char = p.Character; local hum = char:FindFirstChildOfClass("Humanoid")
+    if not char:FindFirstChild(Settings.TargetPart) then 
+        local altPart = (Settings.TargetPart == "LeftHand" and (char:FindFirstChild("LeftHand") or char:FindFirstChild("Left Arm"))) or
+                       (Settings.TargetPart == "RightHand" and (char:FindFirstChild("RightHand") or char:FindFirstChild("Right Arm")))
+        if not altPart then return false end
+    end
+    if Settings.DeadCheck and (not hum or hum.Health <= 0) then return false end
+    if Settings.TeamCheck and p.Team == LocalPlayer.Team then return false end
+    if Settings.ForceFieldCheck and char:FindFirstChildOfClass("ForceField") then return false end
+    return true
+end
+
+local function IsVisible(part, char)
+    if not Settings.WallCheck then return true end
+    local rayParam = RaycastParams.new(); rayParam.FilterDescendantsInstances = {LocalPlayer.Character, char}; rayParam.FilterType = Enum.RaycastFilterType.Exclude
+    local res = workspace:Raycast(Camera.CFrame.Position, (part.Position - Camera.CFrame.Position), rayParam)
+    return res == nil
+end
+
+local function GetTarget(mode)
+    local target, closestValue = nil, math.huge; local mLoc = UserInputService:GetMouseLocation(); local myHrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not myHrp then return nil end
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and Validate(p) then
+            local part = p.Character:FindFirstChild(Settings.TargetPart) or 
+                         (Settings.TargetPart == "LeftHand" and (p.Character:FindFirstChild("LeftHand") or p.Character:FindFirstChild("Left Arm"))) or
+                         (Settings.TargetPart == "RightHand" and (p.Character:FindFirstChild("RightHand") or p.Character:FindFirstChild("Right Arm")))
+            
+            if part then
+                local dist = (myHrp.Position - part.Position).Magnitude
+                if dist <= Settings.TriggerDistance then
+                if mode == "180" then 
+                    local pos, vis = Camera:WorldToViewportPoint(part.Position)
+                    if vis and IsVisible(part, p.Character) then 
+                        if dist < closestValue then closestValue = dist; target = p end 
+                    end
+                else 
+                    local pos, vis = Camera:WorldToViewportPoint(part.Position)
+                    if vis and IsVisible(part, p.Character) then 
+                        local screenMag = (Vector2.new(pos.X, pos.Y) - mLoc).Magnitude
+                        if screenMag <= Settings.FOV then 
+                            if Settings.TargetDistanceCheck == "Mouse" then
+                                if screenMag < closestValue then closestValue = screenMag; target = p end
+                            else
+                                if dist < closestValue then closestValue = dist; target = p end
+                            end
+                        end
+                    end 
+                end
+                end
+            end
+        end
+    end
+    return target
+end
+
+table.insert(Connections, UserInputService.InputBegan:Connect(function(input)
+    if Settings.IsBindingLock then 
+        Settings.LockKey = (input.KeyCode ~= Enum.KeyCode.Unknown and input.KeyCode or input.UserInputType)
+        BindBtn.Text = "Aimbot Key: " .. tostring(Settings.LockKey.Name)
+        Settings.IsBindingLock = false
+    elseif Settings.IsBindingToggle then 
+        if input.KeyCode ~= Enum.KeyCode.Unknown then 
+            Settings.ToggleKey = input.KeyCode
+            ToggleKeyBtn.Text = "GUI Toggle Key: " .. tostring(Settings.ToggleKey.Name)
+            Settings.IsBindingToggle = false 
+        end
+    elseif Settings.IsBindingTrigger then
+        if input.KeyCode ~= Enum.KeyCode.Unknown then
+            Settings.TriggerToggleKey = input.KeyCode
+            TriggerBindBtn.Text = "Trigger Toggle Key: " .. tostring(Settings.TriggerToggleKey.Name)
+            Settings.IsBindingTrigger = false
+        end
+    elseif input.KeyCode == Settings.ToggleKey then 
+        GuiVisible = not GuiVisible; MainFrame.Visible = GuiVisible
+    elseif input.KeyCode == Settings.LockKey or input.UserInputType == Settings.LockKey then 
+        Locking = true
+        if Settings.Sticky then CurrentTarget = GetTarget("Lock") end 
+    elseif input.KeyCode == Settings.TriggerToggleKey then
+        if not UserInputService:GetFocusedTextBox() then
+            if Settings.TriggerBotMode == "None" then
+                Settings.TriggerBotMode = Settings.LastTriggerMode
+                TrigDropBtn.Text = "  TriggerBot: " .. Settings.TriggerBotMode
+            else
+                Settings.LastTriggerMode = Settings.TriggerBotMode
+                Settings.TriggerBotMode = "None"
+                TrigDropBtn.Text = "  TriggerBot: None"
+            end
+        end
+    end
+end))
+
+table.insert(Connections, UserInputService.InputEnded:Connect(function(input) if input.KeyCode == Settings.LockKey or input.UserInputType == Settings.LockKey then Locking = false; CurrentTarget = nil end end))
+
+local lastTriggerTime = 0; local lastTriggerTarget = nil 
+table.insert(Connections, RunService.RenderStepped:Connect(function()
+    if FOVCircle then 
+        FOVCircle.Position = UserInputService:GetMouseLocation()
+        if Settings.TriggerBotMode == "180" then
+            FOVCircle.Visible = false
+        else
+            FOVCircle.Visible = Settings.FOVCircleVisible
+        end
+    end
+    
+    local PreviewTarget = GetTarget("Lock")
+    local ActiveTarget = nil
+
+    if Settings.AimbotEnabled then
+        if Locking then
+            if Settings.Sticky then
+                if not CurrentTarget or not Validate(CurrentTarget) then CurrentTarget = PreviewTarget end
+                ActiveTarget = CurrentTarget
+            else
+                ActiveTarget = PreviewTarget
+            end
+        elseif Settings.TriggerBotMode ~= "None" then
+            ActiveTarget = (Settings.TriggerBotMode == "180" and GetTarget("180")) or PreviewTarget
+        end
+    end
+
+    local HighlightChar = (ActiveTarget and ActiveTarget.Character) or (PreviewTarget and PreviewTarget.Character)
+    if Settings.TargetHighlightEnabled and HighlightChar then
+        if TargetCham.Parent ~= HighlightChar then TargetCham.Parent = HighlightChar end
+    else
+        TargetCham.Parent = nil
+    end
+
+    if ActiveTarget and ActiveTarget.Character then
+        local part = ActiveTarget.Character:FindFirstChild(Settings.TargetPart) or 
+                     (Settings.TargetPart == "LeftHand" and (ActiveTarget.Character:FindFirstChild("LeftHand") or ActiveTarget.Character:FindFirstChild("Left Arm"))) or
+                     (Settings.TargetPart == "RightHand" and (ActiveTarget.Character:FindFirstChild("RightHand") or ActiveTarget.Character:FindFirstChild("Right Arm")))
+        
+        if part then
+            if lastTriggerTarget ~= ActiveTarget then lastTriggerTarget = ActiveTarget; lastTriggerTime = tick() end
+            if IsVisible(part, ActiveTarget.Character) then
+                local mouseLoc = UserInputService:GetMouseLocation(); local pos, vis = Camera:WorldToViewportPoint(part.Position)
+                
+                if (Locking or Settings.TriggerBotMode ~= "None") then 
+                    if Settings.AimbotType == "Camera" then 
+                        local alpha = 1 / (Settings.Smoothing + 1)
+                        Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, part.Position), alpha)
+                    elseif mousemoverel and vis then 
+                        local targetPos = Vector2.new(pos.X, pos.Y)
+                        local diff = (targetPos - mouseLoc)
+                        
+                        local smoothValue = math.max(Settings.Smoothing, 0) + 1
+                        local moveX = diff.X / smoothValue
+                        local moveY = diff.Y / smoothValue
+                        
+                        if math.abs(diff.X) > 0.1 and math.abs(moveX) < 1 then moveX = (diff.X > 0 and 1 or -1) end
+                        if math.abs(diff.Y) > 0.1 and math.abs(moveY) < 1 then moveY = (diff.Y > 0 and 1 or -1) end
+                        
+                        mousemoverel(moveX, moveY) 
+                    end
+                end
+
+                if Settings.TriggerBotMode ~= "None" and Settings.TriggerBotMode ~= nil and (tick() - lastTriggerTime) >= Settings.TriggerDelay then
+                    if vis then
+                        local distToCenter = (Vector2.new(pos.X, pos.Y) - mouseLoc).Magnitude
+                        if Settings.TriggerBotMode == "180" or distToCenter < 25 then 
+                            if mouse1click then 
+                                mouse1click() 
+                                lastTriggerTime = tick() 
+                            end 
+                        end
+                    end
+                end
+            end
+        end
+    else lastTriggerTarget = nil end
+end))
