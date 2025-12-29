@@ -31,6 +31,20 @@ local TypeCamToggle = nil
 local TypeMouseToggle = nil
 local CheckMouseToggle = nil
 local CheckWorldToggle = nil
+local AimbotToggleKeyButton = nil
+local AimbotEnabledToggle = nil
+
+local fovNotifyTask = nil
+local smoothNotifyTask = nil
+local triggerDelayNotifyTask = nil
+local distanceLimitNotifyTask = nil
+local espDistanceNotifyTask = nil
+local espUpdateFreqNotifyTask = nil
+local walkSpeedNotifyTask = nil
+local jumpPowerNotifyTask = nil
+local flySpeedNotifyTask = nil
+local tpWalkSpeedNotifyTask = nil
+local cameraFOVNotifyTask = nil
 
 local TargetCham = Instance.new("Highlight")
 TargetCham.Name = "TargetHighlight"
@@ -220,6 +234,7 @@ Settings.TargetPart = "Head"
 Settings.LockKey = Enum.UserInputType.MouseButton2
 Settings.ToggleKey = Enum.KeyCode.RightShift
 Settings.TriggerToggleKey = Enum.KeyCode.T
+Settings.AimbotToggleKey = Enum.KeyCode.Y
 Settings.AimbotType = "Camera" 
 Settings.FOV = 150
 Settings.FOVCircleColor = Color3.fromRGB(255, 255, 255)
@@ -286,7 +301,7 @@ FOVCircle.Color = Settings.FOVCircleColor
 
 local AimSection = AimbotTab:CreateSection({ Name = "Aimbot" })
 
-AimSection:AddToggle({
+AimbotEnabledToggle = AimSection:AddToggle({
     Name = "Enabled",
     Flag = "Aimbot_Enabled",
     Value = Settings.AimbotEnabled,
@@ -304,41 +319,52 @@ AimKeyButton = AimSection:AddButton({
     end
 })
 
+AimbotToggleKeyButton = AimSection:AddButton({
+    Name = "Aimbot Toggle Key: " .. tostring(Settings.AimbotToggleKey.Name),
+    Callback = function()
+        Settings.IsBindingAimbotToggle = true
+        ShowMenuNotification("Press any key to bind Aimbot Toggle...")
+        if AimbotToggleKeyButton and AimbotToggleKeyButton.SetText then
+             AimbotToggleKeyButton:SetText("Press Any Key...")
+        end
+    end
+})
+
 AimSection:AddToggle({
     Name = "Hard Sticky",
     Flag = "Aimbot_Sticky",
     Value = Settings.Sticky,
-    Callback = function(val) Settings.Sticky = val end
+    Callback = function(val) Settings.Sticky = val; ShowMenuNotification("Hard Sticky " .. (val and "Enabled" or "Disabled")) end
 })
 AimSection:AddToggle({
     Name = "Dead Check",
     Flag = "Aimbot_DeadCheck",
     Value = Settings.DeadCheck,
-    Callback = function(val) Settings.DeadCheck = val end
+    Callback = function(val) Settings.DeadCheck = val; ShowMenuNotification("Dead Check " .. (val and "Enabled" or "Disabled")) end
 })
 AimSection:AddToggle({
     Name = "Wall Check",
     Flag = "Aimbot_WallCheck",
     Value = Settings.WallCheck,
-    Callback = function(val) Settings.WallCheck = val end
+    Callback = function(val) Settings.WallCheck = val; ShowMenuNotification("Wall Check " .. (val and "Enabled" or "Disabled")) end
 })
 AimSection:AddToggle({
     Name = "Team Check",
     Flag = "Aimbot_TeamCheck",
     Value = Settings.TeamCheck,
-    Callback = function(val) Settings.TeamCheck = val end
+    Callback = function(val) Settings.TeamCheck = val; ShowMenuNotification("Team Check " .. (val and "Enabled" or "Disabled")) end
 })
 AimSection:AddToggle({
     Name = "FF Check",
     Flag = "Aimbot_FFCheck",
     Value = Settings.ForceFieldCheck,
-    Callback = function(val) Settings.ForceFieldCheck = val end
+    Callback = function(val) Settings.ForceFieldCheck = val; ShowMenuNotification("FF Check " .. (val and "Enabled" or "Disabled")) end
 })
 AimSection:AddToggle({
     Name = "Target Highlight",
     Flag = "Aimbot_Highlight",
     Value = Settings.TargetHighlightEnabled,
-    Callback = function(val) Settings.TargetHighlightEnabled = val end
+    Callback = function(val) Settings.TargetHighlightEnabled = val; ShowMenuNotification("Target Highlight " .. (val and "Enabled" or "Disabled")) end
 })
 
 local TrigSection = AimbotTab:CreateSection({ Name = "TriggerBot" })
@@ -368,6 +394,7 @@ TrigFOVToggle = TrigSection:AddToggle({
                 Settings.TriggerBotMode = "None"
             end
         end
+        ShowMenuNotification("Trigger FOV Mode " .. (val and "Enabled" or "Disabled"))
     end
 })
 
@@ -385,6 +412,7 @@ Trig180Toggle = TrigSection:AddToggle({
                 Settings.TriggerBotMode = "None"
             end
         end
+        ShowMenuNotification("Trigger 180 Mode " .. (val and "Enabled" or "Disabled"))
     end
 })
 
@@ -397,6 +425,8 @@ TrigSection:AddSlider({
     Increment = 1,
     Callback = function(val) 
         Settings.TriggerDelay = math.floor(val)
+        if triggerDelayNotifyTask then task.cancel(triggerDelayNotifyTask) end
+        triggerDelayNotifyTask = task.delay(0.5, function() ShowMenuNotification("Trigger Delay set to " .. Settings.TriggerDelay .. " ms") end)
     end
 })
 
@@ -416,6 +446,7 @@ TypeCamToggle = TypeSection:AddToggle({
                 TypeCamToggle:Set(true)
             end
         end
+        ShowMenuNotification("Aimbot Type set to Camera")
     end
 })
 
@@ -433,6 +464,7 @@ TypeMouseToggle = TypeSection:AddToggle({
                 TypeCamToggle:Set(true)
             end
         end
+        ShowMenuNotification("Aimbot Type set to Mouse")
     end
 })
 
@@ -452,6 +484,7 @@ CheckMouseToggle = DistSection:AddToggle({
                 CheckMouseToggle:Set(true)
             end
         end
+        ShowMenuNotification("Distance Check set to Mouse")
     end
 })
 
@@ -469,6 +502,7 @@ CheckWorldToggle = DistSection:AddToggle({
                 CheckMouseToggle:Set(true)
             end
         end
+        ShowMenuNotification("Distance Check set to World")
     end
 })
 
@@ -485,6 +519,7 @@ AimMiscSection:AddToggle({
     Callback = function(val)
         Settings.FOVCircleVisible = val
         if FOVCircle then FOVCircle.Visible = val end
+        ShowMenuNotification("FOV Circle " .. (val and "Visible" or "Hidden"))
     end
 })
 AimMiscSection:AddSlider({
@@ -497,6 +532,8 @@ AimMiscSection:AddSlider({
     Callback = function(val)
         Settings.FOV = val
         if FOVCircle then FOVCircle.Radius = val end
+        if fovNotifyTask then task.cancel(fovNotifyTask) end
+        fovNotifyTask = task.delay(0.5, function() ShowMenuNotification("FOV set to " .. val) end)
     end
 })
 AimMiscSection:AddSlider({
@@ -506,7 +543,11 @@ AimMiscSection:AddSlider({
     Min = 0,
     Max = 20,
     Increment = 1,
-    Callback = function(val) Settings.Smoothing = val end
+    Callback = function(val) 
+        Settings.Smoothing = val
+        if smoothNotifyTask then task.cancel(smoothNotifyTask) end
+        smoothNotifyTask = task.delay(0.5, function() ShowMenuNotification("Smooth set to " .. val) end)
+    end
 })
 AimMiscSection:AddSlider({
     Name = "Aimbot Distance Limit",
@@ -515,7 +556,11 @@ AimMiscSection:AddSlider({
     Min = 10,
     Max = 10000,
     Increment = 1,
-    Callback = function(val) Settings.TriggerDistance = val end
+    Callback = function(val) 
+        Settings.TriggerDistance = val
+        if distanceLimitNotifyTask then task.cancel(distanceLimitNotifyTask) end
+        distanceLimitNotifyTask = task.delay(0.5, function() ShowMenuNotification("Aimbot Distance Limit set to " .. val) end)
+    end
 })
 
 AimMiscSection:AddColorPicker({
@@ -533,49 +578,49 @@ VisualsSection:AddToggle({
     Name = "Skeleton ESP",
     Flag = "ESP_Skeleton",
     Value = Settings.SkeletonEnabled,
-    Callback = function(val) Settings.SkeletonEnabled = val end
+    Callback = function(val) Settings.SkeletonEnabled = val; ShowMenuNotification("Skeleton ESP " .. (val and "Enabled" or "Disabled")) end
 })
 VisualsSection:AddToggle({
     Name = "Skeleton ESP Outlines",
     Flag = "ESP_SkeletonOutlines",
     Value = Settings.SkeletonOutlineEnabled,
-    Callback = function(val) Settings.SkeletonOutlineEnabled = val end
+    Callback = function(val) Settings.SkeletonOutlineEnabled = val; ShowMenuNotification("Skeleton ESP Outlines " .. (val and "Enabled" or "Disabled")) end
 })
 VisualsSection:AddToggle({
     Name = "Box ESP",
     Flag = "ESP_Box",
     Value = Settings.BoxEnabled,
-    Callback = function(val) Settings.BoxEnabled = val end
+    Callback = function(val) Settings.BoxEnabled = val; ShowMenuNotification("Box ESP " .. (val and "Enabled" or "Disabled")) end
 })
 VisualsSection:AddToggle({
     Name = "Box ESP Outlines",
     Flag = "ESP_BoxOutlines",
     Value = Settings.BoxOutlineEnabled,
-    Callback = function(val) Settings.BoxOutlineEnabled = val end
+    Callback = function(val) Settings.BoxOutlineEnabled = val; ShowMenuNotification("Box ESP Outlines " .. (val and "Enabled" or "Disabled")) end
 })
 VisualsSection:AddToggle({
     Name = "Name ESP",
     Flag = "ESP_Name",
     Value = Settings.NameEnabled,
-    Callback = function(val) Settings.NameEnabled = val end
+    Callback = function(val) Settings.NameEnabled = val; ShowMenuNotification("Name ESP " .. (val and "Enabled" or "Disabled")) end
 })
 VisualsSection:AddToggle({
     Name = "Name ESP Outlines",
     Flag = "ESP_NameOutlines",
     Value = Settings.NameOutlineEnabled,
-    Callback = function(val) Settings.NameOutlineEnabled = val end
+    Callback = function(val) Settings.NameOutlineEnabled = val; ShowMenuNotification("Name ESP Outlines " .. (val and "Enabled" or "Disabled")) end
 })
 VisualsSection:AddToggle({
     Name = "Head Dot",
     Flag = "ESP_HeadDot",
     Value = Settings.HeadDotEnabled,
-    Callback = function(val) Settings.HeadDotEnabled = val end
+    Callback = function(val) Settings.HeadDotEnabled = val; ShowMenuNotification("Head Dot " .. (val and "Enabled" or "Disabled")) end
 })
 VisualsSection:AddToggle({
     Name = "Chams",
     Flag = "ESP_Chams",
     Value = Settings.ChamsEnabled,
-    Callback = function(val) Settings.ChamsEnabled = val end
+    Callback = function(val) Settings.ChamsEnabled = val; ShowMenuNotification("Chams " .. (val and "Enabled" or "Disabled")) end
 })
 
 local healthBarToggle = false
@@ -595,6 +640,7 @@ VisualsSection:AddToggle({
         else
             Settings.HealthMode = "None"
         end
+        ShowMenuNotification("Health Bars " .. (val and "Enabled" or "Disabled"))
     end
 })
 VisualsSection:AddToggle({
@@ -612,6 +658,7 @@ VisualsSection:AddToggle({
         else
             Settings.HealthMode = "None"
         end
+        ShowMenuNotification("Health Text " .. (val and "Enabled" or "Disabled"))
     end
 })
 VisualsSection:AddSlider({
@@ -621,7 +668,11 @@ VisualsSection:AddSlider({
     Min = 10,
     Max = 15000,
     Increment = 1,
-    Callback = function(val) Settings.ESPDistance = val end
+    Callback = function(val) 
+        Settings.ESPDistance = val
+        if espDistanceNotifyTask then task.cancel(espDistanceNotifyTask) end
+        espDistanceNotifyTask = task.delay(0.5, function() ShowMenuNotification("ESP Distance set to " .. val) end)
+    end
 })
 VisualsSection:AddSlider({
     Name = "ESP Update Frequency",
@@ -632,6 +683,8 @@ VisualsSection:AddSlider({
     Increment = 1,
     Callback = function(val) 
         Settings.ESPUpdateFrequency = val
+        if espUpdateFreqNotifyTask then task.cancel(espUpdateFreqNotifyTask) end
+        espUpdateFreqNotifyTask = task.delay(0.5, function() ShowMenuNotification("ESP Update Frequency set to " .. val) end)
     end
 })
 
@@ -837,6 +890,7 @@ PlayerSection:AddToggle({
                 LocalPlayer.CameraMinZoomDistance = 0.5
             end
         end
+        ShowMenuNotification("Third Person " .. (val and "Enabled" or "Disabled"))
     end
 })
 PlayerSection:AddToggle({
@@ -853,6 +907,7 @@ PlayerSection:AddToggle({
         else
             StopJerk()
         end
+        ShowMenuNotification("Jerk R6 Mode " .. (val and "Enabled" or "Disabled"))
     end
 })
 PlayerSection:AddToggle({
@@ -868,6 +923,7 @@ PlayerSection:AddToggle({
         else
             StopJerk()
         end
+        ShowMenuNotification("Jerk R15 Mode " .. (val and "Enabled" or "Disabled"))
     end
 })
 PlayerSection:AddSlider({
@@ -877,7 +933,11 @@ PlayerSection:AddSlider({
     Min = 1,
     Max = 200,
     Increment = 1,
-    Callback = function(val) Settings.WalkSpeed = val end
+    Callback = function(val) 
+        Settings.WalkSpeed = val
+        if walkSpeedNotifyTask then task.cancel(walkSpeedNotifyTask) end
+        walkSpeedNotifyTask = task.delay(0.5, function() ShowMenuNotification("WalkSpeed set to " .. val) end)
+    end
 })
 PlayerSection:AddSlider({
     Name = "JumpPower",
@@ -886,19 +946,23 @@ PlayerSection:AddSlider({
     Min = 1,
     Max = 500,
     Increment = 1,
-    Callback = function(val) Settings.JumpPower = val end
+    Callback = function(val) 
+        Settings.JumpPower = val
+        if jumpPowerNotifyTask then task.cancel(jumpPowerNotifyTask) end
+        jumpPowerNotifyTask = task.delay(0.5, function() ShowMenuNotification("JumpPower set to " .. val) end)
+    end
 })
 PlayerSection:AddToggle({
     Name = "Lock Speed & JumpPower",
     Flag = "Player_LockSpeed",
     Value = Settings.LockSpeedJump,
-    Callback = function(val) Settings.LockSpeedJump = val end
+    Callback = function(val) Settings.LockSpeedJump = val; ShowMenuNotification("Lock Speed & JumpPower " .. (val and "Enabled" or "Disabled")) end
 })
 PlayerSection:AddToggle({
     Name = "Fly Enabled",
     Flag = "Player_Fly",
     Value = Settings.FlyEnabled,
-    Callback = function(val) Settings.FlyEnabled = val end
+    Callback = function(val) Settings.FlyEnabled = val; ShowMenuNotification("Fly " .. (val and "Enabled" or "Disabled")) end
 })
 PlayerSection:AddSlider({
     Name = "Fly Speed",
@@ -907,19 +971,23 @@ PlayerSection:AddSlider({
     Min = 10,
     Max = 500,
     Increment = 1,
-    Callback = function(val) Settings.FlySpeed = val end
+    Callback = function(val) 
+        Settings.FlySpeed = val
+        if flySpeedNotifyTask then task.cancel(flySpeedNotifyTask) end
+        flySpeedNotifyTask = task.delay(0.5, function() ShowMenuNotification("Fly Speed set to " .. val) end)
+    end
 })
 PlayerSection:AddToggle({
     Name = "Noclip",
     Flag = "Player_Noclip",
     Value = Settings.NoclipEnabled,
-    Callback = function(val) Settings.NoclipEnabled = val end
+    Callback = function(val) Settings.NoclipEnabled = val; ShowMenuNotification("Noclip " .. (val and "Enabled" or "Disabled")) end
 })
 PlayerSection:AddToggle({
     Name = "TpWalk Enabled",
     Flag = "Player_TpWalk",
     Value = Settings.TpWalkEnabled,
-    Callback = function(val) Settings.TpWalkEnabled = val end
+    Callback = function(val) Settings.TpWalkEnabled = val; ShowMenuNotification("TpWalk " .. (val and "Enabled" or "Disabled")) end
 })
 
 PlayerSection:AddSlider({
@@ -932,6 +1000,8 @@ PlayerSection:AddSlider({
     Callback = function(val) 
         Settings.TpWalkStep = math.floor(val * 10) / 10
         Settings.TpWalkSpeed = Settings.TpWalkStep
+        if tpWalkSpeedNotifyTask then task.cancel(tpWalkSpeedNotifyTask) end
+        tpWalkSpeedNotifyTask = task.delay(0.5, function() ShowMenuNotification("TpWalk Speed set to " .. Settings.TpWalkStep) end)
     end
 })
 
@@ -939,7 +1009,7 @@ PlayerSection:AddToggle({
     Name = "Infinite Jump",
     Flag = "Player_InfiniteJump",
     Value = Settings.InfiniteJumpEnabled,
-    Callback = function(val) Settings.InfiniteJumpEnabled = val end
+    Callback = function(val) Settings.InfiniteJumpEnabled = val; ShowMenuNotification("Infinite Jump " .. (val and "Enabled" or "Disabled")) end
 })
 PlayerSection:AddSlider({
     Name = "Camera FOV",
@@ -951,13 +1021,15 @@ PlayerSection:AddSlider({
     Callback = function(val) 
         Settings.CameraFOV = val 
         Camera.FieldOfView = val
+        if cameraFOVNotifyTask then task.cancel(cameraFOVNotifyTask) end
+        cameraFOVNotifyTask = task.delay(0.5, function() ShowMenuNotification("Camera FOV set to " .. val) end)
     end
 })
 PlayerSection:AddToggle({
     Name = "Lock FOV",
     Flag = "Player_LockFOV",
     Value = Settings.LockFOV,
-    Callback = function(val) Settings.LockFOV = val end
+    Callback = function(val) Settings.LockFOV = val; ShowMenuNotification("Lock FOV " .. (val and "Enabled" or "Disabled")) end
 })
 
 local TeleportSection = TeleportTab:CreateSection({ Name = "Teleport Settings" })
@@ -1198,11 +1270,13 @@ TeleportSection:AddToggle({
         if val then
             if SelectedPlayer then
                 startSpectatingLogic(SelectedPlayer)
+                ShowMenuNotification("Spectating Started")
             else
                 ShowMenuNotification("Select a player first!")
             end
         else
             stopSpectatingLogic()
+            ShowMenuNotification("Spectating Stopped")
         end
     end
 })
@@ -1217,6 +1291,7 @@ TeleportFrontToggle = TeleportSection:AddToggle({
             if TeleportBackToggle then TeleportBackToggle:Set(false) end
             if TeleportLeftToggle then TeleportLeftToggle:Set(false) end
             if TeleportRightToggle then TeleportRightToggle:Set(false) end
+            ShowMenuNotification("Teleport Direction set to Front")
         else
             if checkAllOff() then
                 Settings.TeleportDirection = "Back"
@@ -1235,6 +1310,7 @@ TeleportBackToggle = TeleportSection:AddToggle({
             if TeleportFrontToggle then TeleportFrontToggle:Set(false) end
             if TeleportLeftToggle then TeleportLeftToggle:Set(false) end
             if TeleportRightToggle then TeleportRightToggle:Set(false) end
+            ShowMenuNotification("Teleport Direction set to Back")
         else
             if checkAllOff() then
                 Settings.TeleportDirection = "Back"
@@ -1258,6 +1334,7 @@ TeleportLeftToggle = TeleportSection:AddToggle({
             if TeleportFrontToggle then TeleportFrontToggle:Set(false) end
             if TeleportBackToggle then TeleportBackToggle:Set(false) end
             if TeleportRightToggle then TeleportRightToggle:Set(false) end
+            ShowMenuNotification("Teleport Direction set to Left")
         else
             if checkAllOff() then
                 Settings.TeleportDirection = "Back"
@@ -1276,6 +1353,7 @@ TeleportRightToggle = TeleportSection:AddToggle({
             if TeleportFrontToggle then TeleportFrontToggle:Set(false) end
             if TeleportBackToggle then TeleportBackToggle:Set(false) end
             if TeleportLeftToggle then TeleportLeftToggle:Set(false) end
+            ShowMenuNotification("Teleport Direction set to Right")
         else
             if checkAllOff() then
                 Settings.TeleportDirection = "Back"
@@ -1302,6 +1380,7 @@ PlayerListSection:AddToggle({
         else
             PlayerListFrame.Visible = false
         end
+        ShowMenuNotification("Player List " .. (val and "Shown" or "Hidden"))
     end
 })
 
@@ -1642,6 +1721,16 @@ UserInputService.InputBegan:Connect(function(input)
              TrigKeyButton:SetText("Trigger Key: " .. tostring(Settings.TriggerToggleKey.Name))
         end
         return
+    elseif Settings.IsBindingAimbotToggle then
+        if input.KeyCode ~= Enum.KeyCode.Unknown then
+            Settings.AimbotToggleKey = input.KeyCode
+        end
+        Settings.IsBindingAimbotToggle = false
+        ShowMenuNotification("Aimbot Toggle Key Bound to: " .. tostring(Settings.AimbotToggleKey.Name))
+        if AimbotToggleKeyButton and AimbotToggleKeyButton.SetText then
+             AimbotToggleKeyButton:SetText("Aimbot Toggle Key: " .. tostring(Settings.AimbotToggleKey.Name))
+        end
+        return
     end
 
     if input.KeyCode == Settings.ToggleKey then
@@ -1685,6 +1774,12 @@ UserInputService.InputBegan:Connect(function(input)
                 if Trig180Toggle and Trig180Toggle.Set then Trig180Toggle:Set(false) end
             end
         end
+    elseif input.KeyCode == Settings.AimbotToggleKey then
+        Settings.AimbotEnabled = not Settings.AimbotEnabled
+        if AimbotEnabledToggle and AimbotEnabledToggle.Set then
+            AimbotEnabledToggle:Set(Settings.AimbotEnabled)
+        end
+        ShowMenuNotification("Aimbot " .. (Settings.AimbotEnabled and "Enabled" or "Disabled"))
     end
 end)
 
