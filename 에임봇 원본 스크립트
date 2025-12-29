@@ -173,7 +173,6 @@ Library.UnloadCallback = function()
     end
     AllChams = {}
 
-    -- 추�?: 모든 ?�레?�어??ESP ?�소 강제 ?�거
     for _, p in pairs(Players:GetPlayers()) do
         if p.Character then
             for _, obj in pairs(p.Character:GetDescendants()) do
@@ -185,7 +184,6 @@ Library.UnloadCallback = function()
     end
 
     if ScreenGui then ScreenGui:Destroy() end
-    if PlayerListFrame then PlayerListFrame:Destroy() end
 
     StopJerk()
 
@@ -224,7 +222,7 @@ Settings.ToggleKey = Enum.KeyCode.RightShift
 Settings.TriggerToggleKey = Enum.KeyCode.T
 Settings.AimbotType = "Camera" 
 Settings.FOV = 150
-Settings.FOVCircleColor = Color3.fromRGB(150, 100, 255)
+Settings.FOVCircleColor = Color3.fromRGB(255, 255, 255)
 Settings.FOVCircleVisible = true
 Settings.Smoothing = 5
 Settings.WallCheck = true
@@ -234,7 +232,7 @@ Settings.Sticky = true
 Settings.ForceFieldCheck = true
 Settings.TriggerBotMode = "None"
 Settings.LastTriggerMode = "FOV"
-Settings.TriggerDelay = 0
+Settings.TriggerDelay = 150
 Settings.TriggerDistance = 1000
 Settings.TargetHighlightEnabled = false
 Settings.SkeletonEnabled = false
@@ -247,7 +245,7 @@ Settings.HeadDotEnabled = false
 Settings.ChamsEnabled = false
 Settings.HealthMode = "None"
 Settings.ESPDistance = 5000
-Settings.ESPUpdateFrequency = 2
+Settings.ESPUpdateFrequency = 1
 Settings.ESPMaxTargets = 5
 Settings.ESPDetailThreshold = 10
 Settings.WalkSpeed = 16
@@ -280,6 +278,7 @@ Settings.BoxESPTeamColor = Color3.fromRGB(0, 150, 255)
 Settings.BoxESPEnemyColor = Color3.fromRGB(255, 0, 0)
 Settings.BoxESPOccludedColor = Color3.fromRGB(0, 255, 0)
 Settings.BoxOutlineColor = Color3.fromRGB(0, 0, 0)
+Settings.TargetDistanceCheck = "Mouse"
 
 FOVCircle.Visible = Settings.FOVCircleVisible
 FOVCircle.Radius = Settings.FOV
@@ -1088,7 +1087,6 @@ SelectTextBox.FocusLost:Connect(function(enterPressed)
             SelectedPlayer = list[num]
             ShowMenuNotification("Selected: " .. list[num].DisplayName .. " (@" .. list[num].Name .. ")")
         else
-            -- Name search
             local inputLower = input:lower()
             local matches = {}
             for _, p in pairs(list) do
@@ -1294,10 +1292,15 @@ PlayerListSection:AddToggle({
     Flag = "Teleport_ShowPlayerList",
     Value = false,
     Callback = function(val)
-        showPlayerLList = val
-        PlayerListFrame.Visible = val and GuiVisible
+        showPlayerList = val
         if val then
+            -- 플레이어 리스트를 켤 때 메인 프레임이 꺼져있다면 같이 켜줌
+            GuiVisible = true
+            MainFrame.Visible = true
+            PlayerListFrame.Visible = true
             updatePlayerList()
+        else
+            PlayerListFrame.Visible = false
         end
     end
 })
@@ -1475,14 +1478,18 @@ local function GetTarget(mode)
                 local dist = (myHrp.Position - part.Position).Magnitude
                 if dist <= Settings.TriggerDistance then
                     local pos, vis = Camera:WorldToViewportPoint(part.Position)
+                    -- 모드가 180이면 FOV를 무시하고 화면 내(vis)에 있는지만 확인
                     if mode == "180" then
+                        -- 화면에 보이고, 벽 뒤가 아니라면
                         if vis and IsVisible(part, p.Character) then
+                            -- 가장 가까운 대상을 우선순위로 잡음 (World Distance)
                             if dist < closestValue then
                                 closestValue = dist
                                 target = p
                             end
                         end
                     else
+                        -- FOV 모드 (기존 로직)
                         if vis and IsVisible(part, p.Character) then
                             local screenMag = (Vector2.new(pos.X, pos.Y) - mLoc).Magnitude
                             if screenMag <= Settings.FOV then
@@ -1515,28 +1522,34 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
         FOVCircle.Position = UserInputService:GetMouseLocation()
         FOVCircle.Visible = (Settings.TriggerBotMode ~= "180") and Settings.FOVCircleVisible
     end
-    local PreviewTarget = GetTarget("Lock")
+    
     local ActiveTarget = nil
+    local PreviewTarget = nil
+    
     if Settings.AimbotEnabled then
         if Locking then
             if Settings.Sticky then
                 if not CurrentTarget or not Validate(CurrentTarget) then
-                    CurrentTarget = PreviewTarget
+                    CurrentTarget = GetTarget("Lock")
                 end
                 ActiveTarget = CurrentTarget
             else
-                ActiveTarget = PreviewTarget
+                ActiveTarget = GetTarget("Lock")
             end
         elseif Settings.TriggerBotMode ~= "None" then
             if Settings.TriggerBotMode == "180" then
+                -- 180 모드일때는 FOV 계산 로직을 타지 않고 바로 180 로직 호출
                 ActiveTarget = GetTarget("180")
             else
-                ActiveTarget = PreviewTarget
+                -- FOV 모드일때는 Lock(FOV기반) 로직 호출
+                ActiveTarget = GetTarget("Lock")
             end
         end
     end
+    
+    -- PreviewTarget은 디버깅이나 하이라이트용으로 쓰일 수 있으나, 현재 ActiveTarget 로직에 통합됨
 
-    local HighlightChar = (ActiveTarget and ActiveTarget.Character) or (PreviewTarget and PreviewTarget.Character)
+    local HighlightChar = (ActiveTarget and ActiveTarget.Character)
     if Settings.TargetHighlightEnabled and HighlightChar then
         if TargetCham.Parent ~= HighlightChar then
             TargetCham.Parent = HighlightChar
@@ -1580,6 +1593,8 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
                 end
                 if Settings.TriggerBotMode ~= "None" then
                     if (tick() - lastTriggerTime) >= (Settings.TriggerDelay / 1000) then
+                        -- 180 모드이거나 마우스가 대상 근처에 있으면 발사
+                        -- vis(화면내 존재)만 확인하면 180 모드에서는 무조건 발사됨
                         if vis then
                             local distToCenter = (Vector2.new(pos.X, pos.Y) - mouseLoc).Magnitude
                             if Settings.TriggerBotMode == "180" or distToCenter < 25 then
@@ -1629,7 +1644,18 @@ UserInputService.InputBegan:Connect(function(input)
     if input.KeyCode == Settings.ToggleKey then
         GuiVisible = not GuiVisible
         MainFrame.Visible = GuiVisible
-        PlayerListFrame.Visible = GuiVisible and showPlayerList
+        
+        -- 여기가 수정된 부분입니다: MainFrame의 Visible 상태에 따라 PlayerListFrame도 동기화합니다.
+        -- 단, showPlayerList(플레이어 리스트 보기 설정)가 켜져있을 때만 같이 켜집니다.
+        if showPlayerList then
+            PlayerListFrame.Visible = GuiVisible
+            if GuiVisible then
+                updatePlayerList()
+            end
+        else
+            PlayerListFrame.Visible = false
+        end
+
     elseif input.KeyCode == Settings.LockKey or input.UserInputType == Settings.LockKey then
         Locking = true
         if Settings.Sticky then
@@ -1670,7 +1696,7 @@ local function IsVisibleESP(part, char)
     local key = char
     local now = tick()
     local cache = visibilityCache[key]
-    if cache and (now - cache.t) < 1.0 then -- TTL 1.0 seconds
+    if cache and (now - cache.t) < 1.0 then
         return cache.v
     end
     local rayParam = RaycastParams.new()
@@ -1801,7 +1827,6 @@ end
 
 Players.PlayerRemoving:Connect(function(p) RemoveDrawingSet(p) visibilityCache[p] = nil end)
 
--- Single throttled updater for all ESP
 local espAccumulator = 0
 local function SetVisibility(set, state)
     for _, v in pairs(set.limbs or {}) do
@@ -2064,3 +2089,4 @@ local espConnection = RunService.Heartbeat:Connect(function(dt)
         end
     end
 end)
+Connections[espConnection] = true
