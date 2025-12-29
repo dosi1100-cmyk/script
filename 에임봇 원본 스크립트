@@ -1524,7 +1524,6 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
     end
     
     local ActiveTarget = nil
-    local PreviewTarget = nil
     
     if Settings.AimbotEnabled then
         if Locking then
@@ -1546,10 +1545,14 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
             end
         end
     end
-    
-    -- PreviewTarget은 디버깅이나 하이라이트용으로 쓰일 수 있으나, 현재 ActiveTarget 로직에 통합됨
 
-    local HighlightChar = (ActiveTarget and ActiveTarget.Character)
+    -- 여기가 수정된 부분입니다: 락온 상태가 아닐 때도 미리 대상을 계산해 VisualTarget에 넣습니다.
+    local VisualTarget = ActiveTarget
+    if not VisualTarget and Settings.TargetHighlightEnabled then
+         VisualTarget = GetTarget("Lock")
+    end
+
+    local HighlightChar = (VisualTarget and VisualTarget.Character)
     if Settings.TargetHighlightEnabled and HighlightChar then
         if TargetCham.Parent ~= HighlightChar then
             TargetCham.Parent = HighlightChar
