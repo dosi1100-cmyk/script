@@ -40,29 +40,33 @@ local triggerDelayNotifyTask = nil
 local distanceLimitNotifyTask = nil
 local espDistanceNotifyTask = nil
 local espUpdateFreqNotifyTask = nil
+local espTextSizeNotifyTask = nil
 local walkSpeedNotifyTask = nil
 local jumpPowerNotifyTask = nil
 local flySpeedNotifyTask = nil
 local tpWalkSpeedNotifyTask = nil
 local cameraFOVNotifyTask = nil
 
+local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
+ScreenGui.Name = "AIMBOT_BY_DOSHIHUB_REMASTERED"
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+ScreenGui.ResetOnSpawn = false
+
 local TargetCham = Instance.new("Highlight")
 TargetCham.Name = "TargetHighlight"
+TargetCham.Parent = ScreenGui 
 TargetCham.FillColor = Color3.fromRGB(255, 50, 50)
 TargetCham.OutlineColor = Color3.fromRGB(255, 255, 255)
-TargetCham.FillTransparency = 0
+TargetCham.FillTransparency = 0.2
 TargetCham.OutlineTransparency = 0
+TargetCham.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+TargetCham.Enabled = false
 
 local FOVCircle = Drawing.new("Circle")
 FOVCircle.Visible = false
 FOVCircle.Thickness = 1.5
 FOVCircle.Radius = 150
 table.insert(AllDrawings, FOVCircle)
-
-local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
-ScreenGui.Name = "AIMBOT_BY_DOSHIHUB_REMASTERED"
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-ScreenGui.ResetOnSpawn = false
 
 local NotificationContainer = Instance.new("Frame", ScreenGui)
 NotificationContainer.Name = "NotificationContainer"
@@ -187,16 +191,6 @@ Library.UnloadCallback = function()
     end
     AllChams = {}
 
-    for _, p in pairs(Players:GetPlayers()) do
-        if p.Character then
-            for _, obj in pairs(p.Character:GetDescendants()) do
-                if obj:IsA("Highlight") then
-                    obj:Destroy()
-                end
-            end
-        end
-    end
-
     if ScreenGui then ScreenGui:Destroy() end
 
     StopJerk()
@@ -204,9 +198,8 @@ Library.UnloadCallback = function()
     if flyVelocity then flyVelocity:Destroy() end
 
     stopSpectatingLogic()
-
-    TargetCham.Parent = nil
-
+    
+    if TargetCham then TargetCham:Destroy() end
     if FOVCircle then FOVCircle:Remove() end
 
     getgenv().DShub = nil
@@ -261,6 +254,7 @@ Settings.ChamsEnabled = false
 Settings.HealthMode = "None"
 Settings.ESPDistance = 5000
 Settings.ESPUpdateFrequency = 1
+Settings.ESPTextSize = 16
 Settings.ESPMaxTargets = 5
 Settings.ESPDetailThreshold = 10
 Settings.WalkSpeed = 16
@@ -294,8 +288,11 @@ Settings.BoxESPEnemyColor = Color3.fromRGB(255, 0, 0)
 Settings.BoxESPOccludedColor = Color3.fromRGB(0, 255, 0)
 Settings.BoxOutlineColor = Color3.fromRGB(0, 0, 0)
 Settings.TargetDistanceCheck = "Mouse"
+Settings.DistanceESPEnabled = false
+Settings.DistanceESPColor = Color3.fromRGB(255, 255, 255)
+Settings.DistanceESPOutlineEnabled = true
 
-FOVCircle.Visible = Settings.FOVCircleVisible
+FOVCircle.Visible = Settings.AimbotEnabled and Settings.FOVCircleVisible
 FOVCircle.Radius = Settings.FOV
 FOVCircle.Color = Settings.FOVCircleColor
 
@@ -518,7 +515,7 @@ AimMiscSection:AddToggle({
     Value = Settings.FOVCircleVisible,
     Callback = function(val)
         Settings.FOVCircleVisible = val
-        if FOVCircle then FOVCircle.Visible = val end
+        if FOVCircle then FOVCircle.Visible = Settings.AimbotEnabled and val end
         ShowMenuNotification("FOV Circle " .. (val and "Visible" or "Hidden"))
     end
 })
@@ -661,6 +658,18 @@ VisualsSection:AddToggle({
         ShowMenuNotification("Health Text " .. (val and "Enabled" or "Disabled"))
     end
 })
+VisualsSection:AddToggle({
+    Name = "Distance ESP(Studs)",
+    Flag = "ESP_DistanceESP",
+    Value = Settings.DistanceESPEnabled,
+    Callback = function(val) Settings.DistanceESPEnabled = val; ShowMenuNotification("Distance ESP " .. (val and "Enabled" or "Disabled")) end
+})
+VisualsSection:AddToggle({
+    Name = "Distance ESP Outlines",
+    Flag = "ESP_DistanceESPOutlines",
+    Value = Settings.DistanceESPOutlineEnabled,
+    Callback = function(val) Settings.DistanceESPOutlineEnabled = val; ShowMenuNotification("Distance ESP Outlines " .. (val and "Enabled" or "Disabled")) end
+})
 VisualsSection:AddSlider({
     Name = "ESP Distance",
     Flag = "ESP_Distance",
@@ -685,6 +694,24 @@ VisualsSection:AddSlider({
         Settings.ESPUpdateFrequency = val
         if espUpdateFreqNotifyTask then task.cancel(espUpdateFreqNotifyTask) end
         espUpdateFreqNotifyTask = task.delay(0.5, function() ShowMenuNotification("ESP Update Frequency set to " .. val) end)
+    end
+})
+VisualsSection:AddSlider({
+    Name = "ESP Text Size",
+    Flag = "ESP_TextSize",
+    Value = Settings.ESPTextSize,
+    Min = 10,
+    Max = 50,
+    Increment = 1,
+    Callback = function(val) 
+        Settings.ESPTextSize = val
+        for _, set in pairs(EspDrawings) do
+            if set.nameTag then set.nameTag.Size = val + 2 end
+            if set.healthTag then set.healthTag.Size = val end
+            if set.distanceTag then set.distanceTag.Size = val end
+        end
+        if espTextSizeNotifyTask then task.cancel(espTextSizeNotifyTask) end
+        espTextSizeNotifyTask = task.delay(0.5, function() ShowMenuNotification("ESP Text Size set to " .. val) end)
     end
 })
 
@@ -786,6 +813,13 @@ VisualsMiscSection:AddColorPicker({
     Flag = "ESP_ChamsOccludedColor",
     Value = Settings.ChamsOccludedColor,
     Callback = function(val) Settings.ChamsOccludedColor = val end
+})
+
+VisualsMiscSection:AddColorPicker({
+    Name = "Distance Esp Color",
+    Flag = "ESP_DistanceColor",
+    Value = Settings.DistanceESPColor,
+    Callback = function(val) Settings.DistanceESPColor = val end
 })
 
 local function StopJerk()
@@ -1187,7 +1221,7 @@ local function updatePlayerList()
     end
     local text = ""
     for i, name in ipairs(list) do
-        text = text .. string.format("%d----%s\n", i, name)
+        text = text .. string.format("%d-  -%s\n", i, name)
     end
     ListLabel.Text = text
     ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, ListLabel.TextBounds.Y)
@@ -1372,7 +1406,6 @@ PlayerListSection:AddToggle({
     Callback = function(val)
         showPlayerList = val
         if val then
-            -- 플레이어 리스트를 켤 때 메인 프레임이 꺼져있다면 같이 켜줌
             GuiVisible = true
             MainFrame.Visible = true
             PlayerListFrame.Visible = true
@@ -1557,18 +1590,14 @@ local function GetTarget(mode)
                 local dist = (myHrp.Position - part.Position).Magnitude
                 if dist <= Settings.TriggerDistance then
                     local pos, vis = Camera:WorldToViewportPoint(part.Position)
-                    -- 모드가 180이면 FOV를 무시하고 화면 내(vis)에 있는지만 확인
                     if mode == "180" then
-                        -- 화면에 보이고, 벽 뒤가 아니라면
                         if vis and IsVisible(part, p.Character) then
-                            -- 가장 가까운 대상을 우선순위로 잡음 (World Distance)
                             if dist < closestValue then
                                 closestValue = dist
                                 target = p
                             end
                         end
                     else
-                        -- FOV 모드 (기존 로직)
                         if vis and IsVisible(part, p.Character) then
                             local screenMag = (Vector2.new(pos.X, pos.Y) - mLoc).Magnitude
                             if screenMag <= Settings.FOV then
@@ -1599,7 +1628,7 @@ local lastTpTime = 0
 table.insert(Connections, RunService.RenderStepped:Connect(function()
     if FOVCircle then
         FOVCircle.Position = UserInputService:GetMouseLocation()
-        FOVCircle.Visible = (Settings.TriggerBotMode ~= "180") and Settings.FOVCircleVisible
+        FOVCircle.Visible = Settings.AimbotEnabled and (Settings.TriggerBotMode ~= "180") and Settings.FOVCircleVisible
     end
     
     local ActiveTarget = nil
@@ -1616,16 +1645,13 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
             end
         elseif Settings.TriggerBotMode ~= "None" then
             if Settings.TriggerBotMode == "180" then
-                -- 180 모드일때는 FOV 계산 로직을 타지 않고 바로 180 로직 호출
                 ActiveTarget = GetTarget("180")
             else
-                -- FOV 모드일때는 Lock(FOV기반) 로직 호출
                 ActiveTarget = GetTarget("Lock")
             end
         end
     end
 
-    -- 여기가 수정된 부분입니다: 락온 상태가 아닐 때도 미리 대상을 계산해 VisualTarget에 넣습니다.
     local VisualTarget = ActiveTarget
     if not VisualTarget and Settings.TargetHighlightEnabled then
          VisualTarget = GetTarget("Lock")
@@ -1633,11 +1659,11 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
 
     local HighlightChar = (VisualTarget and VisualTarget.Character)
     if Settings.TargetHighlightEnabled and HighlightChar then
-        if TargetCham.Parent ~= HighlightChar then
-            TargetCham.Parent = HighlightChar
-        end
+        TargetCham.Adornee = HighlightChar
+        TargetCham.Enabled = true
     else
-        TargetCham.Parent = nil
+        TargetCham.Enabled = false
+        TargetCham.Adornee = nil
     end
 
     if ActiveTarget and ActiveTarget.Character then
@@ -1675,8 +1701,6 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
                 end
                 if Settings.TriggerBotMode ~= "None" then
                     if (tick() - lastTriggerTime) >= (Settings.TriggerDelay / 1000) then
-                        -- 180 모드이거나 마우스가 대상 근처에 있으면 발사
-                        -- vis(화면내 존재)만 확인하면 180 모드에서는 무조건 발사됨
                         if vis then
                             local distToCenter = (Vector2.new(pos.X, pos.Y) - mouseLoc).Magnitude
                             if Settings.TriggerBotMode == "180" or distToCenter < 25 then
@@ -1734,24 +1758,26 @@ UserInputService.InputBegan:Connect(function(input)
     end
 
     if input.KeyCode == Settings.ToggleKey then
-        GuiVisible = not GuiVisible
-        MainFrame.Visible = GuiVisible
-        
-        -- 여기가 수정된 부분입니다: MainFrame의 Visible 상태에 따라 PlayerListFrame도 동기화합니다.
-        -- 단, showPlayerList(플레이어 리스트 보기 설정)가 켜져있을 때만 같이 켜집니다.
-        if showPlayerList then
-            PlayerListFrame.Visible = GuiVisible
-            if GuiVisible then
-                updatePlayerList()
+        if not UserInputService:GetFocusedTextBox() then
+            GuiVisible = not GuiVisible
+            MainFrame.Visible = GuiVisible
+            
+            if showPlayerList then
+                PlayerListFrame.Visible = GuiVisible
+                if GuiVisible then
+                    updatePlayerList()
+                end
+            else
+                PlayerListFrame.Visible = false
             end
-        else
-            PlayerListFrame.Visible = false
         end
 
     elseif input.KeyCode == Settings.LockKey or input.UserInputType == Settings.LockKey then
-        Locking = true
-        if Settings.Sticky then
-            CurrentTarget = GetTarget("Lock")
+        if not UserInputService:GetFocusedTextBox() then
+            Locking = true
+            if Settings.Sticky then
+                CurrentTarget = GetTarget("Lock")
+            end
         end
     elseif input.KeyCode == Settings.TriggerToggleKey then
         if not UserInputService:GetFocusedTextBox() then
@@ -1775,11 +1801,24 @@ UserInputService.InputBegan:Connect(function(input)
             end
         end
     elseif input.KeyCode == Settings.AimbotToggleKey then
-        Settings.AimbotEnabled = not Settings.AimbotEnabled
-        if AimbotEnabledToggle and AimbotEnabledToggle.Set then
-            AimbotEnabledToggle:Set(Settings.AimbotEnabled)
+        if not UserInputService:GetFocusedTextBox() then
+            Settings.AimbotEnabled = not Settings.AimbotEnabled
+            if AimbotEnabledToggle and AimbotEnabledToggle.Set then
+                AimbotEnabledToggle:Set(Settings.AimbotEnabled)
+            end
+            FOVCircle.Visible = Settings.AimbotEnabled and (Settings.TriggerBotMode ~= "180") and Settings.FOVCircleVisible
+            ShowMenuNotification("Aimbot " .. (Settings.AimbotEnabled and "Enabled" or "Disabled"))
         end
-        ShowMenuNotification("Aimbot " .. (Settings.AimbotEnabled and "Enabled" or "Disabled"))
+    elseif input.KeyCode == Enum.KeyCode.F1 then
+        if not UserInputService:GetFocusedTextBox() then
+            Settings.ESPDistance = math.min(Settings.ESPDistance + 100, 15000)
+            ShowMenuNotification("ESP Distance increased to " .. Settings.ESPDistance)
+        end
+    elseif input.KeyCode == Enum.KeyCode.F2 then
+        if not UserInputService:GetFocusedTextBox() then
+            Settings.ESPDistance = math.max(Settings.ESPDistance - 100, 10)
+            ShowMenuNotification("ESP Distance decreased to " .. Settings.ESPDistance)
+        end
     end
 end)
 
@@ -1812,6 +1851,7 @@ local visibilityCache = {}
 local function CreateDrawingSet(plr)
     local set = {}
     set.limbs = {}
+    
     set.box = Drawing.new("Square")
     set.boxOutline = Drawing.new("Square")
     set.nameTag = Drawing.new("Text")
@@ -1819,7 +1859,11 @@ local function CreateDrawingSet(plr)
     set.healthBarOutline = Drawing.new("Square")
     set.healthBar = Drawing.new("Square")
     set.headDot = Drawing.new("Circle")
+    
     set.cham = Instance.new("Highlight")
+    set.cham.Name = "ESP_Cham"
+    set.cham.Parent = ScreenGui
+    set.cham.Enabled = false
 
     table.insert(AllDrawings, set.box)
     table.insert(AllDrawings, set.boxOutline)
@@ -1838,29 +1882,44 @@ local function CreateDrawingSet(plr)
     set.boxOutline.Filled = false
     set.boxOutline.Color = Color3.new(0,0,0)
     set.boxOutline.ZIndex = 1
-    set.nameTag.Size = 16
+    
+    set.nameTag.Size = Settings.ESPTextSize + 2
     set.nameTag.Center = true
     set.nameTag.Outline = true
     set.nameTag.Color = Color3.new(1,1,1)
-    set.healthTag.Size = 14
+    set.nameTag.ZIndex = 3
+    
+    set.healthTag.Size = Settings.ESPTextSize
     set.healthTag.Center = true
     set.healthTag.Outline = true
     set.healthTag.Color = Color3.new(0,1,0)
+    set.healthTag.ZIndex = 3
+
     set.healthBarOutline.Thickness = 1
     set.healthBarOutline.Filled = true
     set.healthBarOutline.Color = Color3.new(0,0,0)
     set.healthBar.Thickness = 1
     set.healthBar.Filled = true
     set.healthBar.Color = Color3.new(0,1,0)
-    set.headDot.Radius = 5
+    
+    set.headDot.Radius = 4
     set.headDot.Filled = true
     set.headDot.Color = Settings.HeadDotESPColor
+    set.headDot.ZIndex = 3
+    
+    set.distanceTag = Drawing.new("Text")
+    table.insert(AllDrawings, set.distanceTag)
+    set.distanceTag.Size = Settings.ESPTextSize
+    set.distanceTag.Center = true
+    set.distanceTag.Outline = true
+    set.distanceTag.Color = Settings.DistanceESPColor
+    set.distanceTag.ZIndex = 3
 
     EspDrawings[plr] = set
     return set
 end
 
-local function DrawLineForSet(set)
+local function DrawLineForSet()
     local l = Drawing.new("Line")
     l.Visible = false
     l.Color = Settings.SkeletonESPColor
@@ -1872,46 +1931,38 @@ end
 
 local function BuildLimbsForSet(set, rigType)
     if next(set.limbs) then return end
-    if rigType == Enum.HumanoidRigType.R15 then
-        set.limbs = {
-            Head_UpperTorso = {line = DrawLineForSet(set), outline = DrawLineForSet(set)},
-            UpperTorso_LowerTorso = {line = DrawLineForSet(set), outline = DrawLineForSet(set)},
-            UpperTorso_LeftUpperArm = {line = DrawLineForSet(set), outline = DrawLineForSet(set)},
-            LeftUpperArm_LeftLowerArm = {line = DrawLineForSet(set), outline = DrawLineForSet(set)},
-            LeftLowerArm_LeftHand = {line = DrawLineForSet(set), outline = DrawLineForSet(set)},
-            UpperTorso_RightUpperArm = {line = DrawLineForSet(set), outline = DrawLineForSet(set)},
-            RightUpperArm_RightLowerArm = {line = DrawLineForSet(set), outline = DrawLineForSet(set)},
-            RightLowerArm_RightHand = {line = DrawLineForSet(set), outline = DrawLineForSet(set)},
-            LowerTorso_LeftUpperLeg = {line = DrawLineForSet(set), outline = DrawLineForSet(set)},
-            LeftUpperLeg_LeftLowerLeg = {line = DrawLineForSet(set), outline = DrawLineForSet(set)},
-            LeftLowerLeg_LeftFoot = {line = DrawLineForSet(set), outline = DrawLineForSet(set)},
-            LowerTorso_RightUpperLeg = {line = DrawLineForSet(set), outline = DrawLineForSet(set)},
-            RightUpperLeg_RightLowerLeg = {line = DrawLineForSet(set), outline = DrawLineForSet(set)},
-            RightLowerLeg_RightFoot = {line = DrawLineForSet(set), outline = DrawLineForSet(set)}
-        }
-    else
-        set.limbs = {
-            Head_Spine = {line = DrawLineForSet(set), outline = DrawLineForSet(set)},
-            Spine = {line = DrawLineForSet(set), outline = DrawLineForSet(set)},
-            LeftArm = {line = DrawLineForSet(set), outline = DrawLineForSet(set)},
-            LeftArm_UpperTorso = {line = DrawLineForSet(set), outline = DrawLineForSet(set)},
-            RightArm = {line = DrawLineForSet(set), outline = DrawLineForSet(set)},
-            RightArm_UpperTorso = {line = DrawLineForSet(set), outline = DrawLineForSet(set)},
-            LeftLeg = {line = DrawLineForSet(set), outline = DrawLineForSet(set)},
-            LeftLeg_LowerTorso = {line = DrawLineForSet(set), outline = DrawLineForSet(set)},
-            RightLeg = {line = DrawLineForSet(set), outline = DrawLineForSet(set)},
-            RightLeg_LowerTorso = {line = DrawLineForSet(set), outline = DrawLineForSet(set)}
-        }
+    
+    local jointNames = {
+        "Head_UpperTorso", "UpperTorso_LowerTorso", 
+        "UpperTorso_LeftUpperArm", "LeftUpperArm_LeftLowerArm", "LeftLowerArm_LeftHand",
+        "UpperTorso_RightUpperArm", "RightUpperArm_RightLowerArm", "RightLowerArm_RightHand",
+        "LowerTorso_LeftUpperLeg", "LeftUpperLeg_LeftLowerLeg", "LeftLowerLeg_LeftFoot",
+        "LowerTorso_RightUpperLeg", "RightUpperLeg_RightLowerLeg", "RightLowerLeg_RightFoot",
+        
+        "Head_Spine", 
+        "Spine_LeftArm", "Spine_RightArm", 
+        "Spine_LeftLeg", "Spine_RightLeg",
+        
+        "LeftArm_Bone", "RightArm_Bone",
+        "LeftLeg_Bone", "RightLeg_Bone"
+    }
+    
+    for _, name in ipairs(jointNames) do
+        set.limbs[name] = {line = DrawLineForSet(), outline = DrawLineForSet()}
     end
 end
 
 local function RemoveDrawingSet(plr)
     local set = EspDrawings[plr]
     if not set then return end
-    for _, v in pairs(set.limbs or {}) do
-        if v.line then pcall(function() v.line:Remove() end) end
-        if v.outline then pcall(function() v.outline:Remove() end) end
+    
+    if set.limbs then
+        for _, parts in pairs(set.limbs) do
+            if parts.line then pcall(function() parts.line:Remove() end) end
+            if parts.outline then pcall(function() parts.outline:Remove() end) end
+        end
     end
+    
     if set.box then pcall(function() set.box:Remove() end) end
     if set.boxOutline then pcall(function() set.boxOutline:Remove() end) end
     if set.nameTag then pcall(function() set.nameTag:Remove() end) end
@@ -1920,36 +1971,83 @@ local function RemoveDrawingSet(plr)
     if set.healthBar then pcall(function() set.healthBar:Remove() end) end
     if set.headDot then pcall(function() set.headDot:Remove() end) end
     if set.cham then pcall(function() set.cham:Destroy() end) end
+    if set.distanceTag then pcall(function() set.distanceTag:Remove() end) end
     EspDrawings[plr] = nil
 end
 
 Players.PlayerRemoving:Connect(function(p) RemoveDrawingSet(p) visibilityCache[p] = nil end)
 
 local espAccumulator = 0
-local function SetVisibility(set, state)
-    for _, v in pairs(set.limbs or {}) do
-        if v.line then v.line.Visible = (state and Settings.SkeletonEnabled) end
-        if v.outline then v.outline.Visible = (state and Settings.SkeletonEnabled and Settings.SkeletonOutlineEnabled) end
-        if v.outline then v.outline.Color = Settings.SkeletonOutlineColor end
-        if v.outline then v.outline.Thickness = 3 end
-        if v.outline then v.outline.ZIndex = 3 end
-        if v.line then v.line.ZIndex = 2 end
+
+local function SetProperties(set)
+    if set.nameTag then 
+        set.nameTag.OutlineColor = Settings.NameOutlineColor
+        set.nameTag.Size = Settings.ESPTextSize 
     end
-    set.box.Visible = (state and Settings.BoxEnabled)
-    set.boxOutline.Visible = (state and Settings.BoxEnabled and Settings.BoxOutlineEnabled)
-    set.boxOutline.Color = Settings.BoxOutlineColor
-    set.box.Outline = (set.box.Visible and Settings.BoxOutlineEnabled)
-    set.nameTag.Visible = (state and Settings.NameEnabled)
-    set.nameTag.Outline = (set.nameTag.Visible and Settings.NameOutlineEnabled)
-    set.nameTag.OutlineColor = Settings.NameOutlineColor
-    local showBar = (Settings.HealthMode == "Bar" or Settings.HealthMode == "Both")
-    local showText = (Settings.HealthMode == "Text" or Settings.HealthMode == "Both")
-    set.healthTag.Visible = (state and showText)
-    set.healthBarOutline.Visible = (state and showBar)
-    set.healthBar.Visible = (state and showBar)
-    set.headDot.Visible = (state and Settings.HeadDotEnabled)
-    set.cham.Enabled = (state and Settings.ChamsEnabled)
+    if set.distanceTag then
+        set.distanceTag.Color = Settings.DistanceESPColor
+        set.distanceTag.Size = Settings.ESPTextSize
+    end
+    if set.headDot then
+        set.headDot.Color = Settings.HeadDotESPColor
+    end
+    
+    if set.limbs then
+        for _, parts in pairs(set.limbs) do
+            if parts.line then
+                parts.line.Color = Settings.SkeletonESPColor
+            end
+            if parts.outline then
+                parts.outline.Color = Settings.SkeletonOutlineColor
+                parts.outline.Thickness = 3
+            end
+        end
+    end
 end
+
+local function HideAll(set)
+    set.box.Visible = false
+    set.boxOutline.Visible = false
+    set.nameTag.Visible = false
+    set.healthTag.Visible = false
+    set.healthBarOutline.Visible = false
+    set.healthBar.Visible = false
+    set.headDot.Visible = false
+    set.distanceTag.Visible = false
+    if set.limbs then
+        for _, v in pairs(set.limbs) do
+            v.line.Visible = false
+            v.outline.Visible = false
+        end
+    end
+    if set.cham then set.cham.Enabled = false end
+end
+
+local function ConnectLimb(set, limbName, p1, p2)
+    local limbObj = set.limbs[limbName]
+    if not limbObj then return end
+    
+    local pos1, vis1 = Camera:WorldToViewportPoint(p1)
+    local pos2, vis2 = Camera:WorldToViewportPoint(p2)
+    
+    if vis1 and vis2 then
+        limbObj.line.Visible = true
+        limbObj.line.From = Vector2.new(pos1.X, pos1.Y)
+        limbObj.line.To = Vector2.new(pos2.X, pos2.Y)
+        
+        if Settings.SkeletonOutlineEnabled then
+            limbObj.outline.Visible = true
+            limbObj.outline.From = Vector2.new(pos1.X, pos1.Y)
+            limbObj.outline.To = Vector2.new(pos2.X, pos2.Y)
+        else
+            limbObj.outline.Visible = false
+        end
+    else
+        limbObj.line.Visible = false
+        limbObj.outline.Visible = false
+    end
+end
+
 local espConnection = RunService.Heartbeat:Connect(function(dt)
     espAccumulator = espAccumulator + dt
     local interval
@@ -1960,231 +2058,227 @@ local espConnection = RunService.Heartbeat:Connect(function(dt)
     end
     if espAccumulator < interval then return end
     espAccumulator = 0
+    
     for _, plr in pairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer then
             local char = plr.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
             local hum = char and char:FindFirstChildOfClass("Humanoid")
+            local head = char and char:FindFirstChild("Head")
+            
             local set = EspDrawings[plr] or CreateDrawingSet(plr)
-
+            
             if char and hrp and hum and hum.Health > 0 then
+                SetProperties(set)
+                
                 local distance = (Camera.CFrame.Position - hrp.Position).Magnitude
                 if distance > Settings.ESPDistance or (Settings.TeamCheck and plr.Team == LocalPlayer.Team) then
-                    SetVisibility(set, false)
-                end
-                local pos, vis = Camera:WorldToViewportPoint(hrp.Position)
-                if vis then
-                    SetVisibility(set, true)
-                    local sizeY = 3000 / pos.Z
-                    local sizeX = 1800 / pos.Z
-                    local xPos = pos.X - sizeX/2
-                    local yPos = pos.Y - sizeY/2
-                    local showBar = (Settings.HealthMode == "Bar" or Settings.HealthMode == "Both")
-                    local showText = (Settings.HealthMode == "Text" or Settings.HealthMode == "Both")
-                    if Settings.BoxEnabled or Settings.NameEnabled or showBar or showText then
-                        set.box.Size = Vector2.new(sizeX, sizeY)
-                        set.box.Position = Vector2.new(xPos, yPos)
-                        set.boxOutline.Size = Vector2.new(sizeX + 4, sizeY + 4)
-                        set.boxOutline.Position = Vector2.new(xPos - 2, yPos - 2)
-                        set.nameTag.Position = Vector2.new(pos.X, yPos - 20)
-                        set.nameTag.Text = plr.Name
-                        if showBar then
-                            local healthPercent = hum.Health / hum.MaxHealth
-                            local barHeight = sizeY * healthPercent
-                            set.healthBarOutline.Size = Vector2.new(4, sizeY)
-                            set.healthBarOutline.Position = Vector2.new(xPos - 6, yPos)
-                            set.healthBar.Size = Vector2.new(2, barHeight)
-                            set.healthBar.Position = Vector2.new(xPos - 5, yPos + (sizeY - barHeight))
-                            set.healthBar.Color = Color3.fromHSV(healthPercent * 0.3, 1, 1)
-                        end
-                        if showText then
-                            set.healthTag.Text = tostring(math.floor(hum.Health))
-                            set.healthTag.Position = Vector2.new(pos.X, yPos - (Settings.NameEnabled and 35 or 20))
-                        end
-                        if plr.Team == LocalPlayer.Team then
-                            set.box.Color = Settings.BoxESPTeamColor
-                            set.nameTag.Color = Settings.NameESPTeamColor
-                        else
-                            if IsVisibleESP(hrp, char) then
-                                set.box.Color = Settings.BoxESPEnemyColor
-                                set.nameTag.Color = Settings.NameESPEnemyColor
-                            else
-                                set.box.Color = Settings.BoxESPOccludedColor
-                                set.nameTag.Color = Settings.NameESPOccludedColor
-                            end
-                        end
-                    end
-                    if Settings.HeadDotEnabled and char:FindFirstChild("Head") then
-                        local hPos = Camera:WorldToViewportPoint(char.Head.Position)
-                        set.headDot.Position = Vector2.new(hPos.X, hPos.Y)
-                    end
+                    HideAll(set)
+                else
+                    local pos, vis = Camera:WorldToViewportPoint(hrp.Position)
+                    local onScreen = vis
+                    
                     if Settings.ChamsEnabled then
-                        set.cham.Parent = char
-                        set.cham.OutlineTransparency = 0
+                        set.cham.Adornee = char
+                        set.cham.Enabled = true
+                        set.cham.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                         set.cham.FillTransparency = 0.5
+                        set.cham.OutlineTransparency = 0
+                        
                         if plr.Team == LocalPlayer.Team then
                             set.cham.FillColor = Settings.ChamsTeamColor
-                            set.cham.OccludedFillColor = Settings.ChamsTeamColor
                         else
                             if IsVisibleESP(hrp, char) then
                                 set.cham.FillColor = Settings.ChamsEnemyColor
-                                set.cham.OccludedFillColor = Settings.ChamsEnemyColor
                             else
                                 set.cham.FillColor = Settings.ChamsOccludedColor
-                                set.cham.OccludedFillColor = Settings.ChamsOccludedColor
                             end
                         end
-                        set.cham.OutlineColor = Color3.fromRGB(255,255,255)
                     else
-                        set.cham.Parent = nil
+                        set.cham.Enabled = false
                     end
-                    if Settings.SkeletonEnabled then
-                        BuildLimbsForSet(set, hum.RigType)
-                        local function W2V(partName)
-                            local p = char:FindFirstChild(partName)
-                            if p then
-                                local v = Camera:WorldToViewportPoint(p.Position)
-                                return Vector2.new(v.X, v.Y)
+
+                    if onScreen then
+                        local sizeY = 3000 / pos.Z
+                        local sizeX = 1800 / pos.Z
+                        local xPos = pos.X - sizeX/2
+                        local yPos = pos.Y - sizeY/2
+                        
+                        if Settings.BoxEnabled then
+                            set.box.Size = Vector2.new(sizeX, sizeY)
+                            set.box.Position = Vector2.new(xPos, yPos)
+                            set.box.Visible = true
+                            
+                            if Settings.BoxOutlineEnabled then
+                                set.boxOutline.Size = Vector2.new(sizeX + 2, sizeY + 2)
+                                set.boxOutline.Position = Vector2.new(xPos - 1, yPos - 1)
+                                set.boxOutline.Visible = true
+                            else
+                                set.boxOutline.Visible = false
                             end
-                            return nil
-                        end
-                        if hum.RigType == Enum.HumanoidRigType.R15 then
-                            local H = W2V("Head"); local UT = W2V("UpperTorso"); local LT = W2V("LowerTorso")
-                            local LUA = W2V("LeftUpperArm"); local LLA = W2V("LeftLowerArm"); local LH = W2V("LeftHand")
-                            local RUA = W2V("RightUpperArm"); local RLA = W2V("RightLowerArm"); local RH = W2V("RightHand")
-                            local LUL = W2V("LeftUpperLeg"); local LLL = W2V("LeftLowerLeg"); local LF = W2V("LeftFoot")
-                            local RUL = W2V("RightUpperLeg"); local RLL = W2V("RightLowerLeg"); local RF = W2V("RightFoot")
-                            if H and UT and LT then
-                                set.limbs.Head_UpperTorso.line.From = H
-                                set.limbs.Head_UpperTorso.line.To = UT
-                                set.limbs.Head_UpperTorso.outline.From = H
-                                set.limbs.Head_UpperTorso.outline.To = UT
-                                set.limbs.UpperTorso_LowerTorso.line.From = UT
-                                set.limbs.UpperTorso_LowerTorso.line.To = LT
-                                set.limbs.UpperTorso_LowerTorso.outline.From = UT
-                                set.limbs.UpperTorso_LowerTorso.outline.To = LT
-                                set.limbs.UpperTorso_LeftUpperArm.line.From = UT
-                                set.limbs.UpperTorso_LeftUpperArm.line.To = LUA
-                                set.limbs.UpperTorso_LeftUpperArm.outline.From = UT
-                                set.limbs.UpperTorso_LeftUpperArm.outline.To = LUA
-                                set.limbs.LeftUpperArm_LeftLowerArm.line.From = LUA
-                                set.limbs.LeftUpperArm_LeftLowerArm.line.To = LLA
-                                set.limbs.LeftUpperArm_LeftLowerArm.outline.From = LUA
-                                set.limbs.LeftUpperArm_LeftLowerArm.outline.To = LLA
-                                set.limbs.LeftLowerArm_LeftHand.line.From = LLA
-                                set.limbs.LeftLowerArm_LeftHand.line.To = LH
-                                set.limbs.LeftLowerArm_LeftHand.outline.From = LLA
-                                set.limbs.LeftLowerArm_LeftHand.outline.To = LH
-                                set.limbs.UpperTorso_RightUpperArm.line.From = UT
-                                set.limbs.UpperTorso_RightUpperArm.line.To = RUA
-                                set.limbs.UpperTorso_RightUpperArm.outline.From = UT
-                                set.limbs.UpperTorso_RightUpperArm.outline.To = RUA
-                                set.limbs.RightUpperArm_RightLowerArm.line.From = RUA
-                                set.limbs.RightUpperArm_RightLowerArm.line.To = RLA
-                                set.limbs.RightUpperArm_RightLowerArm.outline.From = RUA
-                                set.limbs.RightUpperArm_RightLowerArm.outline.To = RLA
-                                set.limbs.RightLowerArm_RightHand.line.From = RLA
-                                set.limbs.RightLowerArm_RightHand.line.To = RH
-                                set.limbs.RightLowerArm_RightHand.outline.From = RLA
-                                set.limbs.RightLowerArm_RightHand.outline.To = RH
-                                set.limbs.LowerTorso_LeftUpperLeg.line.From = LT
-                                set.limbs.LowerTorso_LeftUpperLeg.line.To = LUL
-                                set.limbs.LowerTorso_LeftUpperLeg.outline.From = LT
-                                set.limbs.LowerTorso_LeftUpperLeg.outline.To = LUL
-                                set.limbs.LeftUpperLeg_LeftLowerLeg.line.From = LUL
-                                set.limbs.LeftUpperLeg_LeftLowerLeg.line.To = LLL
-                                set.limbs.LeftUpperLeg_LeftLowerLeg.outline.From = LUL
-                                set.limbs.LeftUpperLeg_LeftLowerLeg.outline.To = LLL
-                                set.limbs.LeftLowerLeg_LeftFoot.line.From = LLL
-                                set.limbs.LeftLowerLeg_LeftFoot.line.To = LF
-                                set.limbs.LeftLowerLeg_LeftFoot.outline.From = LLL
-                                set.limbs.LeftLowerLeg_LeftFoot.outline.To = LF
-                                set.limbs.LowerTorso_RightUpperLeg.line.From = LT
-                                set.limbs.LowerTorso_RightUpperLeg.line.To = RUL
-                                set.limbs.LowerTorso_RightUpperLeg.outline.From = LT
-                                set.limbs.LowerTorso_RightUpperLeg.outline.To = RUL
-                                set.limbs.RightUpperLeg_RightLowerLeg.line.From = RUL
-                                set.limbs.RightUpperLeg_RightLowerLeg.line.To = RLL
-                                set.limbs.RightUpperLeg_RightLowerLeg.outline.From = RUL
-                                set.limbs.RightUpperLeg_RightLowerLeg.outline.To = RLL
-                                set.limbs.RightLowerLeg_RightFoot.line.From = RLL
-                                set.limbs.RightLowerLeg_RightFoot.line.To = RF
-                                set.limbs.RightLowerLeg_RightFoot.outline.From = RLL
-                                set.limbs.RightLowerLeg_RightFoot.outline.To = RF
+
+                            if plr.Team == LocalPlayer.Team then
+                                set.box.Color = Settings.BoxESPTeamColor
+                            else
+                                if IsVisibleESP(hrp, char) then
+                                    set.box.Color = Settings.BoxESPEnemyColor
+                                else
+                                    set.box.Color = Settings.BoxESPOccludedColor
+                                end
                             end
                         else
-                            local T = char:FindFirstChild("Torso")
-                            if T then
-                                local H = W2V("Head")
-                                local T_H = T.Size.Y/2 - 0.2
-                                local UT_p = Camera:WorldToViewportPoint((T.CFrame * CFrame.new(0, T_H, 0)).p)
-                                local LT_p = Camera:WorldToViewportPoint((T.CFrame * CFrame.new(0, -T_H, 0)).p)
-                                local UT = Vector2.new(UT_p.X, UT_p.Y)
-                                local LT = Vector2.new(LT_p.X, LT_p.Y)
+                            set.box.Visible = false
+                            set.boxOutline.Visible = false
+                        end
+
+                        if Settings.NameEnabled then
+                            set.nameTag.Visible = true
+                            set.nameTag.Position = Vector2.new(pos.X, yPos - 16)
+                            set.nameTag.Text = plr.Name
+                            if plr.Team == LocalPlayer.Team then
+                                set.nameTag.Color = Settings.NameESPTeamColor
+                            else
+                                if IsVisibleESP(hrp, char) then
+                                    set.nameTag.Color = Settings.NameESPEnemyColor
+                                else
+                                    set.nameTag.Color = Settings.NameESPOccludedColor
+                                end
+                            end
+                        else
+                            set.nameTag.Visible = false
+                        end
+                        
+                        if Settings.DistanceESPEnabled then
+                            set.distanceTag.Visible = true
+                            set.distanceTag.Position = Vector2.new(pos.X, yPos + sizeY + 2)
+                            set.distanceTag.Text = string.format("[%d]", math.floor(distance))
+                        else
+                            set.distanceTag.Visible = false
+                        end
+
+                        if Settings.HealthMode == "Bar" or Settings.HealthMode == "Both" then
+                            local healthPercent = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
+                            local barHeight = sizeY * healthPercent
+                            set.healthBarOutline.Visible = true
+                            set.healthBar.Visible = true
+                            set.healthBarOutline.Size = Vector2.new(4, sizeY + 2)
+                            set.healthBarOutline.Position = Vector2.new(xPos - 6, yPos - 1)
+                            set.healthBar.Size = Vector2.new(2, barHeight)
+                            set.healthBar.Position = Vector2.new(xPos - 5, yPos + sizeY - barHeight)
+                            set.healthBar.Color = Color3.fromHSV(healthPercent * 0.3, 1, 1)
+                        else
+                            set.healthBarOutline.Visible = false
+                            set.healthBar.Visible = false
+                        end
+
+                        if Settings.HealthMode == "Text" or Settings.HealthMode == "Both" then
+                            set.healthTag.Visible = true
+                            set.healthTag.Text = tostring(math.floor(hum.Health))
+                            local offset = (Settings.NameEnabled and 30 or 16)
+                            set.healthTag.Position = Vector2.new(pos.X, yPos - offset)
+                        else
+                            set.healthTag.Visible = false
+                        end
+                        
+                        if Settings.HeadDotEnabled and head then
+                            local hPos = Camera:WorldToViewportPoint(head.Position)
+                            set.headDot.Visible = true
+                            set.headDot.Position = Vector2.new(hPos.X, hPos.Y)
+                        else
+                            set.headDot.Visible = false
+                        end
+
+                        if Settings.SkeletonEnabled then
+                            BuildLimbsForSet(set, hum.RigType)
+                            
+                            if hum.RigType == Enum.HumanoidRigType.R15 then
+                                local parts = {
+                                    H = char:FindFirstChild("Head"), UT = char:FindFirstChild("UpperTorso"), LT = char:FindFirstChild("LowerTorso"),
+                                    LUA = char:FindFirstChild("LeftUpperArm"), LLA = char:FindFirstChild("LeftLowerArm"), LH = char:FindFirstChild("LeftHand"),
+                                    RUA = char:FindFirstChild("RightUpperArm"), RLA = char:FindFirstChild("RightLowerArm"), RH = char:FindFirstChild("RightHand"),
+                                    LUL = char:FindFirstChild("LeftUpperLeg"), LLL = char:FindFirstChild("LeftLowerLeg"), LF = char:FindFirstChild("LeftFoot"),
+                                    RUL = char:FindFirstChild("RightUpperLeg"), RLL = char:FindFirstChild("RightLowerLeg"), RF = char:FindFirstChild("RightFoot")
+                                }
+                                
+                                if parts.H and parts.UT then ConnectLimb(set, "Head_UpperTorso", parts.H.Position, parts.UT.Position) end
+                                if parts.UT and parts.LT then ConnectLimb(set, "UpperTorso_LowerTorso", parts.UT.Position, parts.LT.Position) end
+                                
+                                if parts.UT and parts.LUA then ConnectLimb(set, "UpperTorso_LeftUpperArm", parts.UT.Position, parts.LUA.Position) end
+                                if parts.LUA and parts.LLA then ConnectLimb(set, "LeftUpperArm_LeftLowerArm", parts.LUA.Position, parts.LLA.Position) end
+                                if parts.LLA and parts.LH then ConnectLimb(set, "LeftLowerArm_LeftHand", parts.LLA.Position, parts.LH.Position) end
+                                
+                                if parts.UT and parts.RUA then ConnectLimb(set, "UpperTorso_RightUpperArm", parts.UT.Position, parts.RUA.Position) end
+                                if parts.RUA and parts.RLA then ConnectLimb(set, "RightUpperArm_RightLowerArm", parts.RUA.Position, parts.RLA.Position) end
+                                if parts.RLA and parts.RH then ConnectLimb(set, "RightLowerArm_RightHand", parts.RLA.Position, parts.RH.Position) end
+                                
+                                if parts.LT and parts.LUL then ConnectLimb(set, "LowerTorso_LeftUpperLeg", parts.LT.Position, parts.LUL.Position) end
+                                if parts.LUL and parts.LLL then ConnectLimb(set, "LeftUpperLeg_LeftLowerLeg", parts.LUL.Position, parts.LLL.Position) end
+                                if parts.LLL and parts.LF then ConnectLimb(set, "LeftLowerLeg_LeftFoot", parts.LLL.Position, parts.LF.Position) end
+                                
+                                if parts.LT and parts.RUL then ConnectLimb(set, "LowerTorso_RightUpperLeg", parts.LT.Position, parts.RUL.Position) end
+                                if parts.RUL and parts.RLL then ConnectLimb(set, "RightUpperLeg_RightLowerLeg", parts.RUL.Position, parts.RLL.Position) end
+                                if parts.RLL and parts.RF then ConnectLimb(set, "RightLowerLeg_RightFoot", parts.RLL.Position, parts.RF.Position) end
+                            
+                            elseif hum.RigType == Enum.HumanoidRigType.R6 then
+                                local T = char:FindFirstChild("Torso")
+                                local H = char:FindFirstChild("Head")
                                 local LA = char:FindFirstChild("Left Arm")
                                 local RA = char:FindFirstChild("Right Arm")
                                 local LL = char:FindFirstChild("Left Leg")
                                 local RL = char:FindFirstChild("Right Leg")
-                                if LA and RA and LL and RL then
-                                    local LUA_p = Camera:WorldToViewportPoint((LA.CFrame * CFrame.new(0, LA.Size.Y/2-0.2, 0)).p)
-                                    local LLA_p = Camera:WorldToViewportPoint((LA.CFrame * CFrame.new(0, -LA.Size.Y/2+0.2, 0)).p)
-                                    local RUA_p = Camera:WorldToViewportPoint((RA.CFrame * CFrame.new(0, RA.Size.Y/2-0.2, 0)).p)
-                                    local RLA_p = Camera:WorldToViewportPoint((RA.CFrame * CFrame.new(0, -RA.Size.Y/2+0.2, 0)).p)
-                                    local LUL_p = Camera:WorldToViewportPoint((LL.CFrame * CFrame.new(0, LL.Size.Y/2-0.2, 0)).p)
-                                    local LLL_p = Camera:WorldToViewportPoint((LL.CFrame * CFrame.new(0, -LL.Size.Y/2+0.2, 0)).p)
-                                    local RUL_p = Camera:WorldToViewportPoint((RL.CFrame * CFrame.new(0, RL.Size.Y/2-0.2, 0)).p)
-                                    local RLL_p = Camera:WorldToViewportPoint((RL.CFrame * CFrame.new(0, -RL.Size.Y/2+0.2, 0)).p)
-                                    set.limbs.Head_Spine.line.From = Vector2.new(H.X, H.Y)
-                                    set.limbs.Head_Spine.line.To = UT
-                                    set.limbs.Head_Spine.outline.From = Vector2.new(H.X, H.Y)
-                                    set.limbs.Head_Spine.outline.To = UT
-                                    set.limbs.Spine.line.From = UT
-                                    set.limbs.Spine.line.To = LT
-                                    set.limbs.Spine.outline.From = UT
-                                    set.limbs.Spine.outline.To = LT
-                                    set.limbs.LeftArm.line.From = Vector2.new(LUA_p.X, LUA_p.Y)
-                                    set.limbs.LeftArm.line.To = Vector2.new(LLA_p.X, LLA_p.Y)
-                                    set.limbs.LeftArm.outline.From = Vector2.new(LUA_p.X, LUA_p.Y)
-                                    set.limbs.LeftArm.outline.To = Vector2.new(LLA_p.X, LLA_p.Y)
-                                    set.limbs.LeftArm_UpperTorso.line.From = UT
-                                    set.limbs.LeftArm_UpperTorso.line.To = Vector2.new(LUA_p.X, LUA_p.Y)
-                                    set.limbs.LeftArm_UpperTorso.outline.From = UT
-                                    set.limbs.LeftArm_UpperTorso.outline.To = Vector2.new(LUA_p.X, LUA_p.Y)
-                                    set.limbs.RightArm.line.From = Vector2.new(RUA_p.X, RUA_p.Y)
-                                    set.limbs.RightArm.line.To = Vector2.new(RLA_p.X, RLA_p.Y)
-                                    set.limbs.RightArm.outline.From = Vector2.new(RUA_p.X, RUA_p.Y)
-                                    set.limbs.RightArm.outline.To = Vector2.new(RLA_p.X, RLA_p.Y)
-                                    set.limbs.RightArm_UpperTorso.line.From = UT
-                                    set.limbs.RightArm_UpperTorso.line.To = Vector2.new(RUA_p.X, RUA_p.Y)
-                                    set.limbs.RightArm_UpperTorso.outline.From = UT
-                                    set.limbs.RightArm_UpperTorso.outline.To = Vector2.new(RUA_p.X, RUA_p.Y)
-                                    set.limbs.LeftLeg.line.From = Vector2.new(LUL_p.X, LUL_p.Y)
-                                    set.limbs.LeftLeg.line.To = Vector2.new(LLL_p.X, LLL_p.Y)
-                                    set.limbs.LeftLeg.outline.From = Vector2.new(LUL_p.X, LUL_p.Y)
-                                    set.limbs.LeftLeg.outline.To = Vector2.new(LLL_p.X, LLL_p.Y)
-                                    set.limbs.LeftLeg_LowerTorso.line.From = LT
-                                    set.limbs.LeftLeg_LowerTorso.line.To = Vector2.new(LUL_p.X, LUL_p.Y)
-                                    set.limbs.LeftLeg_LowerTorso.outline.From = LT
-                                    set.limbs.LeftLeg_LowerTorso.outline.To = Vector2.new(LUL_p.X, LUL_p.Y)
-                                    set.limbs.RightLeg.line.From = Vector2.new(RUL_p.X, RUL_p.Y)
-                                    set.limbs.RightLeg.line.To = Vector2.new(RLL_p.X, RLL_p.Y)
-                                    set.limbs.RightLeg.outline.From = Vector2.new(RUL_p.X, RUL_p.Y)
-                                    set.limbs.RightLeg.outline.To = Vector2.new(RLL_p.X, RLL_p.Y)
-                                    set.limbs.RightLeg_LowerTorso.line.From = LT
-                                    set.limbs.RightLeg_LowerTorso.line.To = Vector2.new(RUL_p.X, RUL_p.Y)
-                                    set.limbs.RightLeg_LowerTorso.outline.From = LT
-                                    set.limbs.RightLeg_LowerTorso.outline.To = Vector2.new(RUL_p.X, RUL_p.Y)
+                                
+                                if T and H then
+                                    local halfHeight = T.Size.Y / 2 - 0.2
+                                    local upperTorsoPos = (T.CFrame * CFrame.new(0, halfHeight, 0)).p
+                                    local lowerTorsoPos = (T.CFrame * CFrame.new(0, -halfHeight, 0)).p
+                                    
+                                    ConnectLimb(set, "Head_Spine", H.Position, upperTorsoPos)
+                                    
+                                    if LA then 
+                                        local laTop = (LA.CFrame * CFrame.new(0, LA.Size.Y/2, 0)).p
+                                        local laBottom = (LA.CFrame * CFrame.new(0, -LA.Size.Y/2, 0)).p
+                                        ConnectLimb(set, "Spine_LeftArm", upperTorsoPos, laTop)
+                                        ConnectLimb(set, "LeftArm_Bone", laTop, laBottom)
+                                    end
+                                    if RA then 
+                                        local raTop = (RA.CFrame * CFrame.new(0, RA.Size.Y/2, 0)).p
+                                        local raBottom = (RA.CFrame * CFrame.new(0, -RA.Size.Y/2, 0)).p
+                                        ConnectLimb(set, "Spine_RightArm", upperTorsoPos, raTop)
+                                        ConnectLimb(set, "RightArm_Bone", raTop, raBottom)
+                                    end
+                                    
+                                    if LL then 
+                                        local llTop = (LL.CFrame * CFrame.new(0, LL.Size.Y/2, 0)).p
+                                        local llBottom = (LL.CFrame * CFrame.new(0, -LL.Size.Y/2, 0)).p
+                                        ConnectLimb(set, "Spine_LeftLeg", lowerTorsoPos, llTop)
+                                        ConnectLimb(set, "LeftLeg_Bone", llTop, llBottom)
+                                    end
+                                    if RL then 
+                                        local rlTop = (RL.CFrame * CFrame.new(0, RL.Size.Y/2, 0)).p
+                                        local rlBottom = (RL.CFrame * CFrame.new(0, -RL.Size.Y/2, 0)).p
+                                        ConnectLimb(set, "Spine_RightLeg", lowerTorsoPos, rlTop)
+                                        ConnectLimb(set, "RightLeg_Bone", rlTop, rlBottom)
+                                    end
+                                end
+                            end
+                        else
+                            if set.limbs then
+                                for _, v in pairs(set.limbs) do
+                                    v.line.Visible = false
+                                    v.outline.Visible = false
                                 end
                             end
                         end
+                        
+                    else
+                        HideAll(set)
                     end
-                else
-                    SetVisibility(set, false)
                 end
             else
-                SetVisibility(set, false)
+                HideAll(set)
             end
         end
     end
 end)
-Connections[espConnection] = true
+
+table.insert(Connections, espConnection)
