@@ -97,4 +97,4 @@ lp.Chatted:Connect(function(msg)
     end
 end)
 
-print("시스템 로드 완료 - 상시 최상단 GUI 모드")
+print("시스템 로드 완료 --")
