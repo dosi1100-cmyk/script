@@ -38,11 +38,11 @@ local function createHelpGui()
     local list = Instance.new("TextLabel")
     list.Size = UDim2.new(1, -20, 1, -50)
     list.Position = UDim2.new(0, 15, 0, 50)
-    list.Text = "• !재접 / !rj : 서버 재접속\n• !렉 / !lag : 서버 렉 실행\n• !도움 / !help : 도움말 토글"
+    list.Text = "• !재접 / !rj : 서버 재접속\n• !렉 / !lag : 서버 렉 실행\n• !도움 / !help : 도움말 토글\n• !에임봇 / !aimbot : 에임봇 스크립트 실행"
     list.TextColor3 = Color3.fromRGB(220, 220, 220)
     list.BackgroundTransparency = 1
     list.Font = Enum.Font.Gotham
-    list.TextSize = 15
+    list.TextSize = 16
     list.TextXAlignment = Enum.TextXAlignment.Left
     list.TextYAlignment = Enum.TextYAlignment.Top
     list.Parent = frame
