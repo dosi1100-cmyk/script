@@ -3,7 +3,7 @@ local lp = Players.LocalPlayer
 
 game:GetService("StarterGui"):SetCore("SendNotification",{
 Title="스크립트가 실행되었습니다 !를 이용해서 사용하세요",
-Text="확인했으면 눌러주세요",
+Text="made by Dosi",
 Duration=5,
 Button1="확인",
 Callback=b
