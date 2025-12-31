@@ -1,5 +1,5 @@
 local Players = game:GetService("Players")
-local TeleportService = game:GetService("TeleportService") -- 누락되었던 서비스 추가
+local TeleportService = game:GetService("TeleportService")
 local lp = Players.LocalPlayer
 
 game:GetService("StarterGui"):SetCore("SendNotification", {
