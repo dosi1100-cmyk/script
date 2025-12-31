@@ -71,7 +71,7 @@ local helpFrame, helpGui = createHelpGui()
 StarterGui:SetCore("SendNotification", {
     Title = "스크립트 활성화됨",
     Text = "!help 또는 !도움을 입력하세요.",
-    Duration = 5
+    Duration = 7
 })
 
 chatConnection = lp.Chatted:Connect(function(msg)
