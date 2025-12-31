@@ -91,7 +91,7 @@ chatConnection = lp.Chatted:Connect(function(msg)
             loadstring(game:HttpGet("https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/Crasher"))()
         end)
 
-    elseif lowerMsg == "!에임봇" or lowerMsg == "!aimbot" or lowerMsg == "에임봇?" or lowerMsg == "aimbot?" or lowerMsg == "!DShub" then
+    elseif lowerMsg == "!에임봇" or lowerMsg == "!aimbot" or lowerMsg == "!dshub" or lowerMsg == "에임봇?" or lowerMsg == "aimbot?" then
         pcall(function()
             loadstring(game:HttpGet("https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/aimbot"))()
         end)
