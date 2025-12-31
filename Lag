@@ -3,20 +3,19 @@ local TeleportService = game:GetService("TeleportService")
 local StarterGui = game:GetService("StarterGui")
 local lp = Players.LocalPlayer
 
+local chatConnection
+
 local function createHelpGui()
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "HelpGui"
     screenGui.Parent = lp:WaitForChild("PlayerGui")
     screenGui.ResetOnSpawn = false
-    
     screenGui.DisplayOrder = 999999999
     screenGui.IgnoreGuiInset = true
 
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(0, 300, 0, 200)
-    
     frame.Position = UDim2.new(1, -350, 0.5, -100)
-    
     frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     frame.BorderSizePixel = 0
     frame.Visible = false
@@ -38,7 +37,7 @@ local function createHelpGui()
     local list = Instance.new("TextLabel")
     list.Size = UDim2.new(1, -20, 1, -50)
     list.Position = UDim2.new(0, 15, 0, 50)
-    list.Text = "• !재접 / !rj : 서버 재접속\n• !/?렉 / !/?lag : 서버 렉 실행\n• !도움 / !help : 도움말 토글\n• !/?에임봇 / !/?aimbot : 에임봇 스크립트 실행"
+    list.Text = "• !재접 / !rj : 서버 재접속\n• !렉 / !lag : 서버 렉 실행\n• !도움 / !help : 명령어 목록\n• !에임봇 / !aimbot : 에임봇 실행\n• !종료 / !end : 스크립트 종료"
     list.TextColor3 = Color3.fromRGB(220, 220, 220)
     list.BackgroundTransparency = 1
     list.Font = Enum.Font.Gotham
@@ -64,10 +63,10 @@ local function createHelpGui()
         frame.Visible = false
     end)
 
-    return frame
+    return frame, screenGui
 end
 
-local helpFrame = createHelpGui()
+local helpFrame, helpGui = createHelpGui()
 
 StarterGui:SetCore("SendNotification", {
     Title = "스크립트 활성화됨",
@@ -75,7 +74,7 @@ StarterGui:SetCore("SendNotification", {
     Duration = 5
 })
 
-lp.Chatted:Connect(function(msg)
+chatConnection = lp.Chatted:Connect(function(msg)
     local lowerMsg = msg:lower()
 
     if lowerMsg == "!재접" or lowerMsg == "!rj" then
@@ -99,7 +98,22 @@ lp.Chatted:Connect(function(msg)
 
     elseif lowerMsg == "!도움" or lowerMsg == "!help" then
         helpFrame.Visible = not helpFrame.Visible
+
+    elseif lowerMsg == "!종료" or lowerMsg == "!end" then
+        StarterGui:SetCore("SendNotification", {
+            Title = "스크립트 종료",
+            Text = "스크립트가 성공적으로 종료되었습니다.",
+            Duration = 5
+        })
+        warn("스크립트가 종료되었습니다.")
+        
+        if chatConnection then
+            chatConnection:Disconnect()
+        end
+        if helpGui then
+            helpGui:Destroy()
+        end
     end
 end)
 
-print("시스템 로드 완료 --")
+print("스크립트가 로딩 되었습니다 --")
