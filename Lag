@@ -15,3 +15,5 @@ lp.Chatted:Connect(function(msg)
         
         end
 end)
+
+print("스크립트 실행됨")
