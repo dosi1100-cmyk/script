@@ -1,19 +1,39 @@
 local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService") -- 누락되었던 서비스 추가
 local lp = Players.LocalPlayer
 
-game:GetService("StarterGui"):SetCore("SendNotification",{
-Title="스크립트가 실행되었습니다 !를 이용해서 사용하세요",
-Text="made by Dosi",
-Duration=5,
-Button1="확인",
-Callback=b
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "!를 이용해 명령어를 사용하세요",
+    Text = "made by Dosi.",
+    Duration = 5,
+    Button1 = "확인"
 })
 
 lp.Chatted:Connect(function(msg)
-    if msg == "!렉" then
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/Crasher"))()
+    if msg == "!재접" then
+        print("서버 재접속을 시도합니다...")
         
+        local success, err = pcall(function()
+            if #Players:GetPlayers() <= 1 then
+                TeleportService:Teleport(game.PlaceId, lp)
+            else
+                TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, lp)
+            end
+        end)
+
+        if not success then
+            warn("재접속 중 오류 발생: " .. tostring(err))
         end
+
+    elseif msg == "!렉" then
+        local success, err = pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/Crasher"))()
+        end)
+        
+        if not success then
+            warn("스크립트 실행 실패: " .. tostring(err))
+        end
+    end
 end)
 
-print("스크립트 실행됨")
+print("모든 스크립트 로드 완료")
