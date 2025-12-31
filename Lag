@@ -11,7 +11,7 @@ Callback=b
 
 lp.Chatted:Connect(function(msg)
     if msg == "!렉" then
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/Lag"))()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/Crasher"))()
         
         end
 end)
