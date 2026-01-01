@@ -464,7 +464,19 @@ PlayerSection:AddToggle({ Name = "Lock FOV", Flag = "Player_LockFOV", Value = Se
 
 local ServerLagSection = PlayerTab:CreateSection({ Name = "Player Misc", Side = "Right" })
 ServerLagSection:AddButton({ Name = "Enable Server Lag", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/Crasher"))() end })
-ServerLagSection:AddButton({ Name = "Desync V1", Callback = function() setfflag("WorldStepMax", "-99999999") wait(1) setfflag("WorldStepMax", "-1") end })
+ServerLagSection:AddButton({ Name = "Desync V1", Callback = function() 
+    local player = game.Players.LocalPlayer
+    local character = player.Character
+    if character then
+        local root = character:FindFirstChild("HumanoidRootPart")
+        if root then
+            -- Simple desync by offsetting CFrame
+            root.CFrame = root.CFrame * CFrame.new(0, 1000, 0)
+            wait(0.1)
+            root.CFrame = root.CFrame * CFrame.new(0, -1000, 0)
+        end
+    end
+end })
 ServerLagSection:AddButton({ Name = "Rejoin", Callback = function() game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId) end })
 
 local TeleportSection = TeleportTab:CreateSection({ Name = "Teleport Settings" })
