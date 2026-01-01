@@ -49,10 +49,10 @@ end
 
 xpcall(function()
 game:GetService("StarterGui"):SetCore("SendNotification",{
-Title="서버 크래시가 활성화 되어있습니다",
-Text="중단하시려면 클릭해주세요",
+Title="Server Lag enabled",
+Text="if you want to stop click rejoin",
 Duration=9999,
-Button1="중단",
+Button1="rejoin",
 Callback=b
 })
 end,function()end)
