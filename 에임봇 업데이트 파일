@@ -203,7 +203,7 @@ Library.UnloadCallback = function()
 end
 
 local MainFrame = Library:CreateWindow({
-    Name = "DShub V4",
+    Name = "DShub V3.6",
     Themeable = {
         Image = "7059346386",
         Info = "This Script is made by Dosi",
