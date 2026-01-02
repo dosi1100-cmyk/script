@@ -203,7 +203,7 @@ Library.UnloadCallback = function()
 end
 
 local MainFrame = Library:CreateWindow({
-    Name = "DShub V3",
+    Name = "DShub V4",
     Themeable = {
         Image = "7059346386",
         Info = "This Script is made by Dosi",
@@ -289,6 +289,8 @@ Settings.TargetDistanceCheck = "Mouse"
 Settings.DistanceESPEnabled = false
 Settings.DistanceESPColor = Color3.fromRGB(255, 255, 255)
 Settings.DistanceESPOutlineEnabled = true
+Settings.PredictionEnabled = false
+Settings.PredictionRange = 28
 
 FOVCircle.Visible = Settings.AimbotEnabled and Settings.FOVCircleVisible
 FOVCircle.Radius = Settings.FOV
@@ -326,6 +328,10 @@ AimMiscSection:AddSlider({ Name = "FOV", Flag = "Aimbot_FOV", Value = Settings.F
 AimMiscSection:AddSlider({ Name = "Smooth", Flag = "Aimbot_Smooth", Value = Settings.Smoothing, Min = 0, Max = 20, Increment = 1, Callback = function(val) Settings.Smoothing = val; if smoothNotifyTask then task.cancel(smoothNotifyTask) end; smoothNotifyTask = task.delay(0.5, function() ShowMenuNotification("Smooth set to " .. val) end) end })
 AimMiscSection:AddSlider({ Name = "Aimbot Distance Limit", Flag = "Aimbot_TriggerDistance", Value = Settings.TriggerDistance, Min = 10, Max = 10000, Increment = 1, Callback = function(val) Settings.TriggerDistance = val; if distanceLimitNotifyTask then task.cancel(distanceLimitNotifyTask) end; distanceLimitNotifyTask = task.delay(0.5, function() ShowMenuNotification("Aimbot Distance Limit set to " .. val) end) end })
 AimMiscSection:AddColorPicker({ Name = "FOV Circle Color", Flag = "Aimbot_FOVCircleColor", Value = Settings.FOVCircleColor, Callback = function(val) Settings.FOVCircleColor = val; if FOVCircle then FOVCircle.Color = val end end })
+
+local PredictionSection = AimbotTab:CreateSection({ Name = "Prediction Setting" })
+local PredictionToggle = PredictionSection:AddToggle({ Name = "Enabled", Flag = "Prediction_Enabled", Value = Settings.PredictionEnabled, Callback = function(val) Settings.PredictionEnabled = val; ShowMenuNotification("Prediction " .. (val and "Enabled" or "Disabled")) end })
+PredictionSection:AddSlider({ Name = "Prediction Range", Flag = "Prediction_Range", Value = Settings.PredictionRange, Min = 0, Max = 100, Increment = 1, Callback = function(val) Settings.PredictionRange = val; if predictionRangeNotifyTask then task.cancel(predictionRangeNotifyTask) end; predictionRangeNotifyTask = task.delay(0.5, function() ShowMenuNotification("Prediction Range set to " .. val) end) end })
 
 local VisualsSection = VisualsTab:CreateSection({ Name = "Visuals Settings" })
 VisualsSection:AddToggle({ Name = "Skeleton ESP", Flag = "ESP_Skeleton", Value = Settings.SkeletonEnabled, Callback = function(val) Settings.SkeletonEnabled = val; ShowMenuNotification("Skeleton ESP " .. (val and "Enabled" or "Disabled")) end })
@@ -740,6 +746,8 @@ end)
 
 local cachedTarget = nil
 local lastTargetUpdate = 0
+local targetVelocities = {} -- 타겟별 속도 저장
+local lastTargetPositions = {} -- 타겟별 이전 위치 저장
 
 local function Validate(p)
     if not p or not p.Character then return false end
@@ -829,12 +837,32 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
         if part then
             if ActiveTarget ~= CurrentTarget then CurrentTarget = ActiveTarget; lastTriggerTime = tick() end
             if IsVisible(part, ActiveTarget.Character) then
+                -- 예측 로직: 타겟 속도 계산 및 적용
+                local currentPos = part.Position
+                local lastPos = lastTargetPositions[ActiveTarget]
+                local velocity = Vector3.new(0, 0, 0)
+                
+                if lastPos then
+                    velocity = (currentPos - lastPos) / 0.016 -- 대략적인 프레임 시간으로 속도 계산
+                    targetVelocities[ActiveTarget] = velocity
+                else
+                    velocity = targetVelocities[ActiveTarget] or Vector3.new(0, 0, 0)
+                end
+                
+                lastTargetPositions[ActiveTarget] = currentPos
+                
+                -- 예측 위치 계산
+                local predictedPos = currentPos
+                if Settings.PredictionEnabled and velocity.Magnitude > 0.1 then
+                    predictedPos = currentPos + (velocity * (Settings.PredictionRange / 100))
+                end
+                
                 local mouseLoc = UserInputService:GetMouseLocation()
-                local pos, vis = Camera:WorldToViewportPoint(part.Position)
+                local pos, vis = Camera:WorldToViewportPoint(predictedPos)
                 if (Locking or Settings.TriggerBotMode ~= "None") then
                     if Settings.AimbotType == "Camera" then
                         local alpha = 1 / (Settings.Smoothing + 1)
-                        Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, part.Position), alpha)
+                        Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, predictedPos), alpha)
                     else
                         if mousemoverel and vis then
                             local targetPos = Vector2.new(pos.X, pos.Y)
@@ -860,7 +888,15 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
                 end
             end
         end
-    else CurrentTarget = nil end
+    else CurrentTarget = nil 
+        -- 타겟이 없어졌을 때 데이터 정리
+        for player, _ in pairs(lastTargetPositions) do
+            if not player or not player.Character then
+                lastTargetPositions[player] = nil
+                targetVelocities[player] = nil
+            end
+        end
+    end
 end))
 
 UserInputService.InputBegan:Connect(function(input)
