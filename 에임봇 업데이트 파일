@@ -33,6 +33,9 @@ local AllChams = {}
 
 local cachedParts = {}
 local lastNoclipUpdate = 0
+local playerVelocities = {}
+local playerLastPositions = {}
+local lastVelocityUpdate = 0
 
 local AimKeyButton = nil
 local TrigKeyButton = nil
@@ -58,6 +61,7 @@ local jumpPowerNotifyTask = nil
 local flySpeedNotifyTask = nil
 local tpWalkSpeedNotifyTask = nil
 local cameraFOVNotifyTask = nil
+local predictionDistanceNotifyTask = nil
 
 local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
 ScreenGui.Name = "DShubV3"
@@ -269,7 +273,7 @@ Settings.TpWalkSpeed = Settings.TpWalkStep
 Settings.InfiniteJumpEnabled = false
 Settings.JerkEnabled = false
 Settings.JerkR15Enabled = false
-Settings.CameraFOV = 70
+Settings.CameraFOV = nil
 Settings.ThirdPersonEnabled = false
 Settings.NotificationsEnabled = true
 Settings.SkeletonESPColor = Color3.fromRGB(255, 255, 255)
@@ -290,6 +294,8 @@ Settings.TargetDistanceCheck = "Mouse"
 Settings.DistanceESPEnabled = false
 Settings.DistanceESPColor = Color3.fromRGB(255, 255, 255)
 Settings.DistanceESPOutlineEnabled = true
+Settings.PredictionEnabled = false
+Settings.PredictionDistance = 9
 
 FOVCircle.Visible = Settings.AimbotEnabled and Settings.FOVCircleVisible
 FOVCircle.Radius = Settings.FOV
@@ -327,6 +333,10 @@ AimMiscSection:AddSlider({ Name = "FOV", Flag = "Aimbot_FOV", Value = Settings.F
 AimMiscSection:AddSlider({ Name = "Smooth", Flag = "Aimbot_Smooth", Value = Settings.Smoothing, Min = 0, Max = 20, Increment = 1, Callback = function(val) Settings.Smoothing = val; if smoothNotifyTask then task.cancel(smoothNotifyTask) end; smoothNotifyTask = task.delay(0.5, function() ShowMenuNotification("Smooth set to " .. val) end) end })
 AimMiscSection:AddSlider({ Name = "Aimbot Distance Limit", Flag = "Aimbot_TriggerDistance", Value = Settings.TriggerDistance, Min = 10, Max = 10000, Increment = 1, Callback = function(val) Settings.TriggerDistance = val; if distanceLimitNotifyTask then task.cancel(distanceLimitNotifyTask) end; distanceLimitNotifyTask = task.delay(0.5, function() ShowMenuNotification("Aimbot Distance Limit set to " .. val) end) end })
 AimMiscSection:AddColorPicker({ Name = "FOV Circle Color", Flag = "Aimbot_FOVCircleColor", Value = Settings.FOVCircleColor, Callback = function(val) Settings.FOVCircleColor = val; if FOVCircle then FOVCircle.Color = val end end })
+
+local PredictionSection = AimbotTab:CreateSection({ Name = "Prediction Setting" })
+local PredictionToggle = PredictionSection:AddToggle({ Name = "Prediction", Flag = "Prediction_Enabled", Value = Settings.PredictionEnabled, Callback = function(val) Settings.PredictionEnabled = val; if PredictionToggle then PredictionToggle:SetText(val and "Prediction" or "Disabled") end; ShowMenuNotification("Prediction " .. (val and "Enabled" or "Disabled")) end })
+PredictionSection:AddSlider({ Name = "Prediction Distance", Flag = "Prediction_Distance", Value = Settings.PredictionDistance, Min = 0, Max = 100, Increment = 1, Callback = function(val) Settings.PredictionDistance = val; if predictionDistanceNotifyTask then task.cancel(predictionDistanceNotifyTask) end; predictionDistanceNotifyTask = task.delay(0.5, function() ShowMenuNotification("Prediction Distance set to " .. val) end) end })
 
 local VisualsSection = VisualsTab:CreateSection({ Name = "Visuals Settings" })
 VisualsSection:AddToggle({ Name = "Skeleton ESP", Flag = "ESP_Skeleton", Value = Settings.SkeletonEnabled, Callback = function(val) Settings.SkeletonEnabled = val; ShowMenuNotification("Skeleton ESP " .. (val and "Enabled" or "Disabled")) end })
@@ -790,6 +800,16 @@ local function Validate(p)
     return true
 end
 
+local function PredictPosition(player, part)
+    if not Settings.PredictionEnabled or Settings.PredictionDistance == 0 then return part.Position end
+    local velocity = playerVelocities[player.UserId]
+    if velocity then
+        local predictionTime = Settings.PredictionDistance / 100 -- 0-100을 시간으로 변환 (0.01초 단위)
+        return part.Position + velocity * predictionTime
+    end
+    return part.Position
+end
+
 local function IsVisible(part, char)
     if not Settings.WallCheck then return true end
     local rayParam = RaycastParams.new()
@@ -836,6 +856,25 @@ end
 
 local lastTriggerTime = 0
 table.insert(Connections, RunService.RenderStepped:Connect(function()
+    -- 플레이어 속도 추적
+    local now = tick()
+    if now - lastVelocityUpdate >= 0.1 then -- 0.1초마다 업데이트
+        lastVelocityUpdate = now
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character then
+                local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    local lastPos = playerLastPositions[p.UserId]
+                    if lastPos then
+                        local velocity = (hrp.Position - lastPos) / 0.1 -- 속도 계산
+                        playerVelocities[p.UserId] = velocity
+                    end
+                    playerLastPositions[p.UserId] = hrp.Position
+                end
+            end
+        end
+    end
+
     if FOVCircle then
         FOVCircle.Position = UserInputService:GetMouseLocation()
         FOVCircle.Visible = Settings.AimbotEnabled and (Settings.TriggerBotMode ~= "180") and Settings.FOVCircleVisible
@@ -865,11 +904,12 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
             if ActiveTarget ~= CurrentTarget then CurrentTarget = ActiveTarget; lastTriggerTime = tick() end
             if IsVisible(part, ActiveTarget.Character) then
                 local mouseLoc = UserInputService:GetMouseLocation()
-                local pos, vis = Camera:WorldToViewportPoint(part.Position)
+                local predictedPos = PredictPosition(ActiveTarget, part)
+                local pos, vis = Camera:WorldToViewportPoint(predictedPos)
                 if (Locking or Settings.TriggerBotMode ~= "None") then
                     if Settings.AimbotType == "Camera" then
                         local alpha = 1 / (Settings.Smoothing + 1)
-                        Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, part.Position), alpha)
+                        Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, predictedPos), alpha)
                     else
                         if mousemoverel and vis then
                             local targetPos = Vector2.new(pos.X, pos.Y)
