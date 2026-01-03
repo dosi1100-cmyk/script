@@ -203,7 +203,7 @@ Library.UnloadCallback = function()
 end
 
 local MainFrame = Library:CreateWindow({
-    Name = "DShub V3.6",
+    Name = "DShub V3",
     Themeable = {
         Image = "7059346386",
         Info = "This Script is made by Dosi",
@@ -243,6 +243,7 @@ Settings.TargetHighlightEnabled = false
 Settings.SkeletonEnabled = false
 Settings.SkeletonOutlineEnabled = false
 Settings.BoxEnabled = false
+Settings.BoxCornerEnabled = false
 Settings.BoxOutlineEnabled = false
 Settings.NameEnabled = false
 Settings.NameOutlineEnabled = false
@@ -289,8 +290,6 @@ Settings.TargetDistanceCheck = "Mouse"
 Settings.DistanceESPEnabled = false
 Settings.DistanceESPColor = Color3.fromRGB(255, 255, 255)
 Settings.DistanceESPOutlineEnabled = true
-Settings.PredictionEnabled = false
-Settings.PredictionRange = 28
 
 FOVCircle.Visible = Settings.AimbotEnabled and Settings.FOVCircleVisible
 FOVCircle.Radius = Settings.FOV
@@ -329,14 +328,44 @@ AimMiscSection:AddSlider({ Name = "Smooth", Flag = "Aimbot_Smooth", Value = Sett
 AimMiscSection:AddSlider({ Name = "Aimbot Distance Limit", Flag = "Aimbot_TriggerDistance", Value = Settings.TriggerDistance, Min = 10, Max = 10000, Increment = 1, Callback = function(val) Settings.TriggerDistance = val; if distanceLimitNotifyTask then task.cancel(distanceLimitNotifyTask) end; distanceLimitNotifyTask = task.delay(0.5, function() ShowMenuNotification("Aimbot Distance Limit set to " .. val) end) end })
 AimMiscSection:AddColorPicker({ Name = "FOV Circle Color", Flag = "Aimbot_FOVCircleColor", Value = Settings.FOVCircleColor, Callback = function(val) Settings.FOVCircleColor = val; if FOVCircle then FOVCircle.Color = val end end })
 
-local PredictionSection = AimbotTab:CreateSection({ Name = "Prediction Setting" })
-local PredictionToggle = PredictionSection:AddToggle({ Name = "Enabled", Flag = "Prediction_Enabled", Value = Settings.PredictionEnabled, Callback = function(val) Settings.PredictionEnabled = val; ShowMenuNotification("Prediction " .. (val and "Enabled" or "Disabled")) end })
-PredictionSection:AddSlider({ Name = "Prediction Range", Flag = "Prediction_Range", Value = Settings.PredictionRange, Min = 0, Max = 100, Increment = 1, Callback = function(val) Settings.PredictionRange = val; if predictionRangeNotifyTask then task.cancel(predictionRangeNotifyTask) end; predictionRangeNotifyTask = task.delay(0.5, function() ShowMenuNotification("Prediction Range set to " .. val) end) end })
-
 local VisualsSection = VisualsTab:CreateSection({ Name = "Visuals Settings" })
 VisualsSection:AddToggle({ Name = "Skeleton ESP", Flag = "ESP_Skeleton", Value = Settings.SkeletonEnabled, Callback = function(val) Settings.SkeletonEnabled = val; ShowMenuNotification("Skeleton ESP " .. (val and "Enabled" or "Disabled")) end })
 VisualsSection:AddToggle({ Name = "Skeleton ESP Outlines", Flag = "ESP_SkeletonOutlines", Value = Settings.SkeletonOutlineEnabled, Callback = function(val) Settings.SkeletonOutlineEnabled = val; ShowMenuNotification("Skeleton ESP Outlines " .. (val and "Enabled" or "Disabled")) end })
-VisualsSection:AddToggle({ Name = "Box ESP", Flag = "ESP_Box", Value = Settings.BoxEnabled, Callback = function(val) Settings.BoxEnabled = val; ShowMenuNotification("Box ESP " .. (val and "Enabled" or "Disabled")) end })
+
+-- Box ESP 및 Corner ESP 상호 배타적 로직 추가
+local BoxToggle = nil
+local BoxCornerToggle = nil
+
+BoxToggle = VisualsSection:AddToggle({ 
+    Name = "Box ESP", 
+    Flag = "ESP_Box", 
+    Value = Settings.BoxEnabled, 
+    Callback = function(val) 
+        Settings.BoxEnabled = val
+        if val then
+            -- Box ESP 켜짐 -> Corner ESP 끄기
+            Settings.BoxCornerEnabled = false
+            if BoxCornerToggle then BoxCornerToggle:Set(false) end
+        end
+        ShowMenuNotification("Box ESP " .. (val and "Enabled" or "Disabled")) 
+    end 
+})
+
+BoxCornerToggle = VisualsSection:AddToggle({ 
+    Name = "Box Corner ESP", 
+    Flag = "ESP_BoxCorner", 
+    Value = Settings.BoxCornerEnabled, 
+    Callback = function(val) 
+        Settings.BoxCornerEnabled = val
+        if val then
+            -- Corner ESP 켜짐 -> Box ESP 끄기
+            Settings.BoxEnabled = false
+            if BoxToggle then BoxToggle:Set(false) end
+        end
+        ShowMenuNotification("Box Corner ESP " .. (val and "Enabled" or "Disabled")) 
+    end 
+})
+
 VisualsSection:AddToggle({ Name = "Box ESP Outlines", Flag = "ESP_BoxOutlines", Value = Settings.BoxOutlineEnabled, Callback = function(val) Settings.BoxOutlineEnabled = val; ShowMenuNotification("Box ESP Outlines " .. (val and "Enabled" or "Disabled")) end })
 VisualsSection:AddToggle({ Name = "Name ESP", Flag = "ESP_Name", Value = Settings.NameEnabled, Callback = function(val) Settings.NameEnabled = val; ShowMenuNotification("Name ESP " .. (val and "Enabled" or "Disabled")) end })
 VisualsSection:AddToggle({ Name = "Name ESP Outlines", Flag = "ESP_NameOutlines", Value = Settings.NameOutlineEnabled, Callback = function(val) Settings.NameOutlineEnabled = val; ShowMenuNotification("Name ESP Outlines " .. (val and "Enabled" or "Disabled")) end })
@@ -746,8 +775,6 @@ end)
 
 local cachedTarget = nil
 local lastTargetUpdate = 0
-local targetVelocities = {} -- 타겟별 속도 저장
-local lastTargetPositions = {} -- 타겟별 이전 위치 저장
 
 local function Validate(p)
     if not p or not p.Character then return false end
@@ -837,32 +864,12 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
         if part then
             if ActiveTarget ~= CurrentTarget then CurrentTarget = ActiveTarget; lastTriggerTime = tick() end
             if IsVisible(part, ActiveTarget.Character) then
-                -- 예측 로직: 타겟 속도 계산 및 적용
-                local currentPos = part.Position
-                local lastPos = lastTargetPositions[ActiveTarget]
-                local velocity = Vector3.new(0, 0, 0)
-                
-                if lastPos then
-                    velocity = (currentPos - lastPos) / 0.016 -- 대략적인 프레임 시간으로 속도 계산
-                    targetVelocities[ActiveTarget] = velocity
-                else
-                    velocity = targetVelocities[ActiveTarget] or Vector3.new(0, 0, 0)
-                end
-                
-                lastTargetPositions[ActiveTarget] = currentPos
-                
-                -- 예측 위치 계산
-                local predictedPos = currentPos
-                if Settings.PredictionEnabled and velocity.Magnitude > 0.1 then
-                    predictedPos = currentPos + (velocity * (Settings.PredictionRange / 100))
-                end
-                
                 local mouseLoc = UserInputService:GetMouseLocation()
-                local pos, vis = Camera:WorldToViewportPoint(predictedPos)
+                local pos, vis = Camera:WorldToViewportPoint(part.Position)
                 if (Locking or Settings.TriggerBotMode ~= "None") then
                     if Settings.AimbotType == "Camera" then
                         local alpha = 1 / (Settings.Smoothing + 1)
-                        Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, predictedPos), alpha)
+                        Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, part.Position), alpha)
                     else
                         if mousemoverel and vis then
                             local targetPos = Vector2.new(pos.X, pos.Y)
@@ -888,15 +895,7 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
                 end
             end
         end
-    else CurrentTarget = nil 
-        -- 타겟이 없어졌을 때 데이터 정리
-        for player, _ in pairs(lastTargetPositions) do
-            if not player or not player.Character then
-                lastTargetPositions[player] = nil
-                targetVelocities[player] = nil
-            end
-        end
-    end
+    else CurrentTarget = nil end
 end))
 
 UserInputService.InputBegan:Connect(function(input)
@@ -1028,6 +1027,20 @@ local function CreateDrawingSet(plr)
     set.healthBar.Thickness = 1; set.healthBar.Filled = true
     set.headDot.Radius = 4; set.headDot.Filled = true; set.headDot.ZIndex = 3
     set.distanceTag.Center = true; set.distanceTag.Outline = true; set.distanceTag.ZIndex = 3
+    
+    -- Box Corner lines setup
+    set.boxCorner = {}
+    set.boxCornerOutlines = {}
+    for i = 1, 8 do
+        local l = Drawing.new("Line")
+        l.Thickness = 1; l.ZIndex = 2; l.Visible = false
+        table.insert(set.boxCorner, l); table.insert(AllDrawings, l)
+        
+        local lo = Drawing.new("Line")
+        lo.Thickness = 3; lo.Color = Color3new(0,0,0); lo.ZIndex = 1; lo.Visible = false
+        table.insert(set.boxCornerOutlines, lo); table.insert(AllDrawings, lo)
+    end
+
     EspDrawings[plr] = set
     return set
 end
@@ -1047,6 +1060,8 @@ local function RemoveDrawingSet(plr)
     if set.limbs then for _, parts in pairs(set.limbs) do if parts.line then parts.line:Remove() end; if parts.outline then parts.outline:Remove() end end end
     set.box:Remove(); set.boxOutline:Remove(); set.nameTag:Remove(); set.healthTag:Remove()
     set.healthBarOutline:Remove(); set.healthBar:Remove(); set.headDot:Remove(); set.distanceTag:Remove()
+    if set.boxCorner then for _, l in ipairs(set.boxCorner) do l:Remove() end end
+    if set.boxCornerOutlines then for _, l in ipairs(set.boxCornerOutlines) do l:Remove() end end
     if set.cham then set.cham:Destroy() end
     EspDrawings[plr] = nil
 end
@@ -1059,6 +1074,8 @@ local function HideAll(set)
     set.healthBarOutline.Visible = false; set.healthBar.Visible = false
     set.headDot.Visible = false; set.distanceTag.Visible = false
     if set.limbs then for _, v in pairs(set.limbs) do v.line.Visible = false; v.outline.Visible = false end end
+    if set.boxCorner then for _, l in ipairs(set.boxCorner) do l.Visible = false end end
+    if set.boxCornerOutlines then for _, l in ipairs(set.boxCornerOutlines) do l.Visible = false end end
     if set.cham then set.cham.Enabled = false end
 end
 
@@ -1075,7 +1092,7 @@ local function ConnectLimb(set, limbName, p1, p2)
 end
 
 local function isAnyEspEnabled()
-    return Settings.BoxEnabled or Settings.NameEnabled or Settings.HealthMode ~= "None" or Settings.SkeletonEnabled or Settings.HeadDotEnabled or Settings.DistanceESPEnabled or Settings.ChamsEnabled
+    return Settings.BoxEnabled or Settings.BoxCornerEnabled or Settings.NameEnabled or Settings.HealthMode ~= "None" or Settings.SkeletonEnabled or Settings.HeadDotEnabled or Settings.DistanceESPEnabled or Settings.ChamsEnabled
 end
 
 local espAccumulator = 0
@@ -1122,16 +1139,56 @@ table.insert(Connections, RunService.Heartbeat:Connect(function(dt)
 
                         local sizeY = 3000 / pos.Z; local sizeX = 1800 / pos.Z
                         local xPos = pos.X - sizeX/2; local yPos = pos.Y - sizeY/2
-                        
+                        local boxColor = Settings.BoxESPTeamColor
+                        if plr.Team ~= LocalPlayer.Team then boxColor = isVis and Settings.BoxESPEnemyColor or Settings.BoxESPOccludedColor end
+
                         if Settings.BoxEnabled then
                             set.box.Size = Vector2new(sizeX, sizeY); set.box.Position = Vector2new(xPos, yPos); set.box.Visible = true
+                            set.box.Color = boxColor
                             if Settings.BoxOutlineEnabled then 
                                 set.boxOutline.Size = Vector2new(sizeX + 2, sizeY + 2); set.boxOutline.Position = Vector2new(xPos - 1, yPos - 1); set.boxOutline.Visible = true 
+                                set.boxOutline.Color = Settings.BoxOutlineColor
                             else 
                                 set.boxOutline.Visible = false 
                             end
-                            if plr.Team == LocalPlayer.Team then set.box.Color = Settings.BoxESPTeamColor else set.box.Color = isVis and Settings.BoxESPEnemyColor or Settings.BoxESPOccludedColor end
                         else set.box.Visible = false; set.boxOutline.Visible = false end
+
+                        if Settings.BoxCornerEnabled then
+                            local lineLen = math.min(sizeX, sizeY) / 3
+                            local lines = set.boxCorner
+                            local outlines = set.boxCornerOutlines
+                            
+                            local tl = Vector2new(xPos, yPos)
+                            local tr = Vector2new(xPos + sizeX, yPos)
+                            local bl = Vector2new(xPos, yPos + sizeY)
+                            local br = Vector2new(xPos + sizeX, yPos + sizeY)
+
+                            -- Define pairs for corners: (start, end)
+                            local cords = {
+                                {tl, Vector2new(tl.X + lineLen, tl.Y)}, {tl, Vector2new(tl.X, tl.Y + lineLen)}, -- Top Left
+                                {tr, Vector2new(tr.X - lineLen, tr.Y)}, {tr, Vector2new(tr.X, tr.Y + lineLen)}, -- Top Right
+                                {bl, Vector2new(bl.X + lineLen, bl.Y)}, {bl, Vector2new(bl.X, bl.Y - lineLen)}, -- Bottom Left
+                                {br, Vector2new(br.X - lineLen, br.Y)}, {br, Vector2new(br.X, br.Y - lineLen)}  -- Bottom Right
+                            }
+
+                            for i = 1, 8 do
+                                if lines[i] then
+                                    lines[i].From = cords[i][1]; lines[i].To = cords[i][2]
+                                    lines[i].Color = boxColor; lines[i].Visible = true
+                                    
+                                    if Settings.BoxOutlineEnabled and outlines[i] then
+                                        outlines[i].From = cords[i][1]; outlines[i].To = cords[i][2]
+                                        outlines[i].Color = Settings.BoxOutlineColor
+                                        outlines[i].Visible = true
+                                    else
+                                        if outlines[i] then outlines[i].Visible = false end
+                                    end
+                                end
+                            end
+                        else
+                            if set.boxCorner then for _, l in ipairs(set.boxCorner) do l.Visible = false end end
+                            if set.boxCornerOutlines then for _, l in ipairs(set.boxCornerOutlines) do l.Visible = false end end
+                        end
 
                         if Settings.NameEnabled then
                             set.nameTag.Visible = true; set.nameTag.Position = Vector2new(pos.X, yPos - 16); set.nameTag.Text = plr.Name
@@ -1211,6 +1268,8 @@ table.insert(Connections, RunService.Heartbeat:Connect(function(dt)
                             set.healthBar.Visible = false; set.healthBarOutline.Visible = false
                             set.healthTag.Visible = false
                             set.headDot.Visible = false
+                            if set.boxCorner then for _, l in ipairs(set.boxCorner) do l.Visible = false end end
+                            if set.boxCornerOutlines then for _, l in ipairs(set.boxCornerOutlines) do l.Visible = false end end
                             if set.limbs then for _, v in pairs(set.limbs) do v.line.Visible = false; v.outline.Visible = false end end
                         end
                         
