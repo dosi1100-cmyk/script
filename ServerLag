@@ -1,3 +1,7 @@
+local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
+local lp = Players.LocalPlayer
+
 for _,v in game:GetService("Players"):GetPlayers()do
 if v~=game:GetService("Players").LocalPlayer then
 v.CharacterAdded:Connect(function(c)
@@ -44,7 +48,9 @@ end)
 
 b=Instance.new("BindableFunction")
 b.OnInvoke=function()
-game:GetService("TeleportService"):Teleport(game.PlaceId,game:GetService("Players").LocalPlayer)
+    pcall(function()
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, lp)
+    end)
 end
 
 xpcall(function()
