@@ -174,4 +174,5 @@ task.spawn(function()
     end
 end)
 
+
 print("음식 뺏어가기 활성화됨")
