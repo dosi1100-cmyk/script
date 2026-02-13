@@ -1,4 +1,4 @@
--- Version: v8.4
+-- Version: v8.5
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
 local StarterGui = game:GetService("StarterGui")
@@ -1948,6 +1948,11 @@ local function processCommand(msg)
         pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/78n/SimpleSpy/main/SimpleSpySource.lua"))() end)
         StarterGui:SetCore("SendNotification", {Title = "SimpleSpy 실행", Text = "Remote Spy가 실행되었습니다.", Duration = 3})
 
+    elseif lowerMsg == ".lg" then
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/Loopgrab"))() end)
+    elseif lowerMsg == ".unlg" then
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/Loopgrab"))() end)
+    
     elseif lowerMsg == ".chatlog" or lowerMsg == ".cl" then toggleChatLog(true)
     elseif lowerMsg == ".unchatlog" or lowerMsg == ".uncl" then toggleChatLog(false)
     elseif lowerMsg == ".exit" or lowerMsg == ".run" then game:Shutdown()
@@ -2607,7 +2612,7 @@ mainInputConnection = UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-print("v8.4 명령어 스크립트가 로딩 되었습니다 --")
+print("v8.5 명령어 스크립트가 로딩 되었습니다 --")
 
 -- ==============================================================================
 -- [ REMOTE ADMIN & FLING 기능 ]
