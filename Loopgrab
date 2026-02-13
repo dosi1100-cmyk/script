@@ -73,7 +73,7 @@ end
 -- 3. 최적화된 스팸 루프 (Heartbeat 사용)
 -- task.wait보다 RunService가 프레임 단위로 실행되어 훨씬 안정적이고 리소스를 덜 먹습니다.
 local lastSendTime = 0
-local interval = 0.003 -- 0.01초 간격
+local interval = 0.003 -- 셋오너 스팸 속도
 
 getgenv().OwnerSpamConnection = RunService.Heartbeat:Connect(function()
     -- 안전 장치: OFF 상태면 연결 해제
