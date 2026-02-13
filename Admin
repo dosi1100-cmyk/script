@@ -1300,7 +1300,7 @@ local function toggleAntiBomb(state)
                 HumanoidRootPart.CFrame = ovenMain.CFrame * CFrame.new(0, 0, 10)
             end
             
-            task.wait(0.1)
+            task.wait(0.05)
 
             local interactRemote = ReplicatedStorage:WaitForChild("GrabEvents"):WaitForChild("SetNetworkOwner")
             local ButtonSequence = {"Button1", "Button2", "ButtonOven", "Button3", "Button4"}
