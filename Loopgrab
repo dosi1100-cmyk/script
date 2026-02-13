@@ -1,0 +1,110 @@
+-- v1.4
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local StarterGui = game:GetService("StarterGui")
+
+-- [토글 시스템] 이미 실행 중이면 종료 로직 수행
+if getgenv().OwnerSpamRunning then
+    getgenv().OwnerSpamRunning = false
+    getgenv().CurrentGrabbedPart = nil
+    
+    -- 기존 루프 연결 해제 (메모리 최적화)
+    if getgenv().OwnerSpamConnection then
+        getgenv().OwnerSpamConnection:Disconnect()
+        getgenv().OwnerSpamConnection = nil
+    end
+
+    StarterGui:SetCore("SendNotification", {
+        Title = "System",
+        Text = "Auto-Owner Spam: OFF",
+        Duration = 3
+    })
+    return
+end
+
+-- [실행 시작]
+getgenv().OwnerSpamRunning = true
+
+-- 1. 리모트 및 서비스 미리 찾기 (루프 내부 접근 최소화)
+local grabEvents = ReplicatedStorage:WaitForChild("GrabEvents", 5)
+local setNetworkOwnerRemote = grabEvents and grabEvents:WaitForChild("SetNetworkOwner", 5)
+local destroyGrabLineRemote = grabEvents and grabEvents:WaitForChild("DestroyGrabLine", 5)
+
+if not setNetworkOwnerRemote or not destroyGrabLineRemote then
+    warn("필요한 리모트 이벤트를 찾을 수 없습니다.")
+    getgenv().OwnerSpamRunning = false
+    return
+end
+
+-- 2. 리모트 훅 (이벤트 감지)
+if not getgenv().OwnerSpamHookInstalled then
+    getgenv().OwnerSpamHookInstalled = true
+    
+    local oldNamecall
+    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+        if not getgenv().OwnerSpamRunning then
+            return oldNamecall(self, ...)
+        end
+
+        local method = getnamecallmethod()
+
+        if method == "FireServer" then
+            if self == setNetworkOwnerRemote then
+                -- 물건을 잡았을 때 파트 감지
+                if not checkcaller() then 
+                    local args = {...}
+                    local targetPart = args[1]
+                    if targetPart and typeof(targetPart) == "Instance" and targetPart:IsA("BasePart") then
+                        getgenv().CurrentGrabbedPart = targetPart
+                    end
+                end
+            elseif self == destroyGrabLineRemote then
+                -- 물건을 놓았을 때 즉시 중단
+                if not checkcaller() then
+                    getgenv().CurrentGrabbedPart = nil
+                end
+            end
+        end
+
+        return oldNamecall(self, ...)
+    end)
+end
+
+-- 3. 최적화된 스팸 루프 (Heartbeat 사용)
+-- task.wait보다 RunService가 프레임 단위로 실행되어 훨씬 안정적이고 리소스를 덜 먹습니다.
+local lastSendTime = 0
+local interval = 0.005 -- 0.01초 간격
+
+getgenv().OwnerSpamConnection = RunService.Heartbeat:Connect(function()
+    -- 안전 장치: OFF 상태면 연결 해제
+    if not getgenv().OwnerSpamRunning then 
+        if getgenv().OwnerSpamConnection then 
+            getgenv().OwnerSpamConnection:Disconnect() 
+            getgenv().OwnerSpamConnection = nil
+        end
+        return 
+    end
+
+    -- 타겟 파트가 없으면 로직 패스 (연산 절약)
+    local part = getgenv().CurrentGrabbedPart
+    if not part or not part.Parent then 
+        getgenv().CurrentGrabbedPart = nil
+        return 
+    end
+
+    -- 정밀 타이머 체크 (os.clock이 tick보다 빠르고 정확함)
+    local now = os.clock()
+    if now - lastSendTime >= interval then
+        lastSendTime = now
+        
+        -- CFrame 계산 및 전송
+        -- 변수를 로컬로 선언해 둔 setNetworkOwnerRemote를 직접 사용하여 조회 비용 절감
+        setNetworkOwnerRemote:FireServer(part, part.CFrame)
+    end
+end)
+
+StarterGui:SetCore("SendNotification", {
+    Title = "System",
+    Text = "Auto-Owner Spam: ON",
+    Duration = 3
+})
