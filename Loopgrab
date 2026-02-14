@@ -1,110 +1,260 @@
--- v1.4
+-- v4.3 (Zombie Mode: No Safety, Infinite Respawn)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
 
--- [토글 시스템] 이미 실행 중이면 종료 로직 수행
-if getgenv().OwnerSpamRunning then
-    getgenv().OwnerSpamRunning = false
-    getgenv().CurrentGrabbedPart = nil
+local LocalPlayer = Players.LocalPlayer
+
+-- [설정: 사용자 정의 상수]
+local PALLET_NAME = "PalletLightBrown"
+local SPAM_INTERVAL = 0.03      -- 룹그랩 스팸 간격
+local DROP_HEIGHT = 50000       -- 높이: 5만
+local DROP_SPEED = -300000      -- 속도: 30만
+local IMPACT_POWER = 10         -- 파워: 10
+local SEGMENTS = 8              -- 분할: 8번
+
+-- [리모트 찾기]
+local menuToys = ReplicatedStorage:WaitForChild("MenuToys", 5)
+local spawnToyRemote = menuToys and menuToys:WaitForChild("SpawnToyRemoteFunction")
+local destroyToyRemote = menuToys and menuToys:FindFirstChild("DestroyToy")
+
+local grabEvents = ReplicatedStorage:WaitForChild("GrabEvents", 5)
+local setNetworkOwnerRemote = grabEvents and grabEvents:WaitForChild("SetNetworkOwner")
+local destroyGrabLineRemote = grabEvents and grabEvents:WaitForChild("DestroyGrabLine")
+
+if not (spawnToyRemote and destroyToyRemote and setNetworkOwnerRemote and destroyGrabLineRemote) then
+    warn("[System] 필수 리모트를 찾지 못했습니다.")
+    return
+end
+
+-- ==========================================
+-- [토글 시스템]
+-- ==========================================
+if getgenv().LoopGrabRunning then
+    -- [OFF 로직]
+    getgenv().LoopGrabRunning = false
+    getgenv().CurrentGrabbedTarget = nil
+    getgenv().IsRespawning = false
     
-    -- 기존 루프 연결 해제 (메모리 최적화)
-    if getgenv().OwnerSpamConnection then
-        getgenv().OwnerSpamConnection:Disconnect()
-        getgenv().OwnerSpamConnection = nil
+    if getgenv().LoopGrabConnection then
+        getgenv().LoopGrabConnection:Disconnect()
+        getgenv().LoopGrabConnection = nil
     end
+
+    -- 기존 판자 삭제
+    if getgenv().CurrentPalletModel and getgenv().CurrentPalletModel.Parent then
+        pcall(function() 
+            destroyToyRemote:FireServer(getgenv().CurrentPalletModel) 
+        end)
+    end
+    getgenv().CurrentPalletModel = nil
+    getgenv().CurrentPalletPart = nil
 
     StarterGui:SetCore("SendNotification", {
         Title = "System",
-        Text = "Auto-Owner Spam: OFF",
+        Text = "Loop Grab: OFF",
         Duration = 3
     })
     return
+else
+    -- [ON 로직]
+    getgenv().LoopGrabRunning = true
+    getgenv().IsRespawning = false
 end
 
--- [실행 시작]
-getgenv().OwnerSpamRunning = true
-
--- 1. 리모트 및 서비스 미리 찾기 (루프 내부 접근 최소화)
-local grabEvents = ReplicatedStorage:WaitForChild("GrabEvents", 5)
-local setNetworkOwnerRemote = grabEvents and grabEvents:WaitForChild("SetNetworkOwner", 5)
-local destroyGrabLineRemote = grabEvents and grabEvents:WaitForChild("DestroyGrabLine", 5)
-
-if not setNetworkOwnerRemote or not destroyGrabLineRemote then
-    warn("필요한 리모트 이벤트를 찾을 수 없습니다.")
-    getgenv().OwnerSpamRunning = false
-    return
+-- [충돌 방지 함수]
+local function SetNoCollisionWithPlayer(palletPart)
+    local char = LocalPlayer.Character
+    if not char then return end
+    for _, part in pairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            local constraint = Instance.new("NoCollisionConstraint")
+            constraint.Part0 = palletPart
+            constraint.Part1 = part
+            constraint.Parent = palletPart
+        end
+    end
 end
 
--- 2. 리모트 훅 (이벤트 감지)
-if not getgenv().OwnerSpamHookInstalled then
-    getgenv().OwnerSpamHookInstalled = true
+-- ==========================================
+-- [판자 소환 및 복구 함수]
+-- ==========================================
+local function SpawnPallet()
+    -- 이미 리스폰 중이거나 스크립트가 꺼졌으면 중단
+    if getgenv().IsRespawning or not getgenv().LoopGrabRunning then return end
+    getgenv().IsRespawning = true
+
+    -- 혹시 남아있는 찌꺼기 판자 제거
+    if getgenv().CurrentPalletModel and getgenv().CurrentPalletModel.Parent then
+        pcall(function() destroyToyRemote:FireServer(getgenv().CurrentPalletModel) end)
+    end
+    getgenv().CurrentPalletModel = nil
+    getgenv().CurrentPalletPart = nil
+
+    -- 1. 스폰 요청
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local spawnPos = LocalPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 5, 0)
+        pcall(function()
+            spawnToyRemote:InvokeServer(PALLET_NAME, spawnPos, Vector3.zero)
+        end)
+    end
     
+    -- 2. 객체 찾기 (최대 2초 대기)
+    local toyFolder = Workspace:WaitForChild(LocalPlayer.Name .. "SpawnedInToys", 5)
+    local foundModel = nil
+    
+    if toyFolder then
+        local s = os.clock()
+        while os.clock() - s < 2 do
+            if not getgenv().LoopGrabRunning then return end -- 끄면 중단
+            
+            for _, child in pairs(toyFolder:GetChildren()) do
+                if child.Name == PALLET_NAME and child:IsA("Model") then
+                    foundModel = child
+                    break
+                end
+            end
+            if foundModel then break end
+            task.wait(0.1)
+        end
+    end
+
+    if foundModel then
+        local foundPart = foundModel:WaitForChild("SoundPart", 3)
+        if foundPart then
+            -- 전역 변수 업데이트
+            getgenv().CurrentPalletModel = foundModel
+            getgenv().CurrentPalletPart = foundPart
+            
+            -- 설정 적용
+            SetNoCollisionWithPlayer(foundPart)
+            foundPart.CanCollide = false
+            pcall(function()
+                setNetworkOwnerRemote:FireServer(foundPart, foundPart.CFrame)
+            end)
+            foundPart.CFrame = CFrame.new(0, DROP_HEIGHT, 0)
+        end
+    end
+
+    -- 리스폰 종료 (성공하든 실패하든 루프가 다시 체크하게 함)
+    getgenv().IsRespawning = false
+end
+
+-- 초기 실행
+task.spawn(SpawnPallet)
+
+-- ==========================================
+-- [Part 2: 훅 (타겟 유지)]
+-- ==========================================
+if not getgenv().LoopGrabHookInstalled then
+    getgenv().LoopGrabHookInstalled = true
     local oldNamecall
     oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-        if not getgenv().OwnerSpamRunning then
+        if not getgenv().LoopGrabRunning then
             return oldNamecall(self, ...)
         end
 
         local method = getnamecallmethod()
-
         if method == "FireServer" then
             if self == setNetworkOwnerRemote then
-                -- 물건을 잡았을 때 파트 감지
-                if not checkcaller() then 
-                    local args = {...}
-                    local targetPart = args[1]
-                    if targetPart and typeof(targetPart) == "Instance" and targetPart:IsA("BasePart") then
-                        getgenv().CurrentGrabbedPart = targetPart
+                if not checkcaller() then
+                    local targetPart = ({...})[1]
+                    -- 내 판자가 아니면 타겟으로 간주
+                    if targetPart ~= getgenv().CurrentPalletPart and targetPart:IsA("BasePart") then
+                        getgenv().CurrentGrabbedTarget = targetPart
                     end
                 end
             elseif self == destroyGrabLineRemote then
-                -- 물건을 놓았을 때 즉시 중단
                 if not checkcaller() then
-                    getgenv().CurrentGrabbedPart = nil
+                    getgenv().CurrentGrabbedTarget = nil
                 end
             end
         end
-
         return oldNamecall(self, ...)
     end)
 end
 
--- 3. 최적화된 스팸 루프 (Heartbeat 사용)
--- task.wait보다 RunService가 프레임 단위로 실행되어 훨씬 안정적이고 리소스를 덜 먹습니다.
-local lastSendTime = 0
-local interval = 0.003 -- 셋오너 스팸 속도
+-- ==========================================
+-- [Part 3: 무한 루프 (안전장치 제거됨)]
+-- ==========================================
+local hammerGoingDown = true
+local segmentIndex = 0
+local lastSpamTime = 0
 
-getgenv().OwnerSpamConnection = RunService.Heartbeat:Connect(function()
-    -- 안전 장치: OFF 상태면 연결 해제
-    if not getgenv().OwnerSpamRunning then 
-        if getgenv().OwnerSpamConnection then 
-            getgenv().OwnerSpamConnection:Disconnect() 
-            getgenv().OwnerSpamConnection = nil
-        end
-        return 
-    end
+getgenv().LoopGrabConnection = RunService.Heartbeat:Connect(function()
+    if not getgenv().LoopGrabRunning then return end -- 사용자가 껐을 때만 멈춤
 
-    -- 타겟 파트가 없으면 로직 패스 (연산 절약)
-    local part = getgenv().CurrentGrabbedPart
-    if not part or not part.Parent then 
-        getgenv().CurrentGrabbedPart = nil
-        return 
-    end
-
-    -- 정밀 타이머 체크 (os.clock이 tick보다 빠르고 정확함)
     local now = os.clock()
-    if now - lastSendTime >= interval then
-        lastSendTime = now
-        
-        -- CFrame 계산 및 전송
-        -- 변수를 로컬로 선언해 둔 setNetworkOwnerRemote를 직접 사용하여 조회 비용 절감
-        setNetworkOwnerRemote:FireServer(part, part.CFrame)
+    local grabbedTarget = getgenv().CurrentGrabbedTarget
+    local palletPart = getgenv().CurrentPalletPart
+    local palletModel = getgenv().CurrentPalletModel
+
+    -- [A] 룹그랩 유지 (판자가 없어도 잡기는 계속 시도)
+    if grabbedTarget and grabbedTarget.Parent then
+        if now - lastSpamTime >= SPAM_INTERVAL then
+            pcall(function()
+                setNetworkOwnerRemote:FireServer(grabbedTarget, grabbedTarget.CFrame)
+            end)
+            lastSpamTime = now
+        end
+    end
+
+    -- [B] 판자 상태 확인 및 물리 제어
+    if palletModel and palletModel.Parent and palletPart and palletPart.Parent then
+        -- << 판자가 존재할 때 로직 >>
+        local targetHrp = nil
+        if grabbedTarget and grabbedTarget.Parent then
+            local model = grabbedTarget.Parent
+            if model:FindFirstChild("Humanoid") then
+                targetHrp = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Torso")
+            end
+        end
+
+        if targetHrp then
+            -- 공격 모드
+            local startPos = targetHrp.Position + Vector3.new(0, DROP_HEIGHT, 0)
+            local endPos = targetHrp.Position
+
+            if hammerGoingDown then
+                segmentIndex = segmentIndex + 1
+                local alpha = segmentIndex / SEGMENTS
+                local nextPos = startPos:Lerp(endPos, alpha)
+                
+                palletPart.CFrame = CFrame.new(nextPos)
+                palletPart.AssemblyLinearVelocity = Vector3.new(0, DROP_SPEED, 0)
+                palletPart.AssemblyAngularVelocity = Vector3.zero
+                
+                if segmentIndex >= SEGMENTS then
+                    palletPart.AssemblyLinearVelocity = Vector3.new(0, -IMPACT_POWER, 0)
+                    hammerGoingDown = false
+                end
+            else
+                palletPart.CFrame = CFrame.new(startPos)
+                palletPart.AssemblyLinearVelocity = Vector3.zero
+                segmentIndex = 0
+                hammerGoingDown = true
+            end
+        else
+            -- 대기 모드
+            palletPart.CFrame = CFrame.new(0, DROP_HEIGHT, 0)
+            palletPart.AssemblyLinearVelocity = Vector3.zero
+            palletPart.AssemblyAngularVelocity = Vector3.zero
+            segmentIndex = 0
+            hammerGoingDown = true
+        end
+    else
+        -- [C] 판자가 없다? -> 즉시 재생성 시도
+        -- 절대 LoopGrabRunning을 false로 바꾸지 않음.
+        if not getgenv().IsRespawning then
+            task.spawn(SpawnPallet)
+        end
     end
 end)
 
 StarterGui:SetCore("SendNotification", {
     Title = "System",
-    Text = "Auto-Owner Spam: ON",
+    Text = "Loop Grab v4.3 (Zombie Mode): ON",
     Duration = 3
 })
