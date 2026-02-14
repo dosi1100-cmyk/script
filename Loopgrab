@@ -1,7 +1,48 @@
--- v5.2 (Stable Blocking Spawn: Reliability Restored)
+-- v5.3
+local StarterGui = game:GetService("StarterGui")
+
+-- ==========================================
+-- [0. 실행기 호환성 테스트 (Compatibility Check)]
+-- ==========================================
+local requiredFunctions = {
+    "getgenv",
+    "hookmetamethod",
+    "checkcaller",
+    "getnamecallmethod"
+}
+
+local missingFunctions = {}
+
+for _, funcName in ipairs(requiredFunctions) do
+    if not getfenv()[funcName] then
+        table.insert(missingFunctions, funcName)
+    end
+end
+
+if #missingFunctions > 0 then
+    -- [실패] 지원하지 않음 알림 및 종료
+    warn("[System] 호환성 테스트 실패! 없는 함수: " .. table.concat(missingFunctions, ", "))
+    
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = "System Error",
+            Text = "이 실행기는 스크립트를 지원하지 않습니다.",
+            Duration = 5,
+        })
+    end)
+    
+    return -- 스크립트 강제 종료
+else
+    -- [성공] 콘솔 출력 후 계속 진행
+    print("[System] 호환성 테스트 통과: 실행기가 모든 기능을 지원합니다.")
+end
+
+-- ==========================================
+-- [스크립트 본문 시작]
+-- ==========================================
+
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local StarterGui = game:GetService("StarterGui")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 
@@ -9,7 +50,7 @@ local LocalPlayer = Players.LocalPlayer
 
 -- [설정: 사용자 정의 상수]
 local PALLET_NAME = "PalletLightBrown"
-local SPAM_INTERVAL = 0.001      -- 룹그랩 스팸 간격
+local SPAM_INTERVAL = 0.03      -- 룹그랩 스팸 간격
 local DROP_HEIGHT = 50000       -- 높이: 5만
 local DROP_SPEED = -300000      -- 속도: 30만
 local IMPACT_POWER = 10         -- 파워: 10
@@ -100,7 +141,7 @@ local function SpawnPallet()
     end
 
     -- 2. 좌표 계산 (머리 위 15스터드 + 시선 정렬)
-    local spawnPos = hrp.Position + Vector3.new(0, 3, 0)
+    local spawnPos = hrp.Position + Vector3.new(0, 15, 0)
     local rx, ry, rz = hrp.CFrame:ToOrientation()
     local finalCFrame = CFrame.new(spawnPos) * CFrame.fromOrientation(math.rad(90), ry, 0)
 
@@ -265,6 +306,6 @@ end)
 
 StarterGui:SetCore("SendNotification", {
     Title = "System",
-    Text = "Loop Grab v5.2 (Stable): ON",
+    Text = "Loop Grab v5.3 : ON",
     Duration = 3
 })
