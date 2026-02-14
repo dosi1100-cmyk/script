@@ -1,4 +1,4 @@
--- Version: v8.6
+-- Version: v8.8
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
 local StarterGui = game:GetService("StarterGui")
@@ -115,7 +115,7 @@ local friendListContent = nil
 local friendListTitle = nil
 local friendListLayout = nil
 
--- [친구 상태 캐시 (v8.4 추가: 퇴장 감지 정확도 향상용)]
+-- [친구 상태 캐시]
 local friendCache = {}
 
 -- [명령 입력 포커스 상태]
@@ -1117,7 +1117,7 @@ local function runBrokeBarrier()
     local RootPart = Character.HumanoidRootPart
     local OriginalCFrame = RootPart.CFrame
 
-    -- 1. 식빵 소환 (비동기 처리)
+    -- 1. 식빵 소환 (Spawn Bread)
     local spawnPos = OriginalCFrame * CFrame.new(0, 0, -5)
     task.spawn(function()
         local menuToys = ReplicatedStorage:WaitForChild("MenuToys", 5)
@@ -1129,7 +1129,10 @@ local function runBrokeBarrier()
         end
     end)
 
-    -- 2. 식빵 잡기 (비동기, 병렬 처리) - 소환되자마자 잡기 시도
+    -- 2. 0.05초 대기 (Wait 0.05s)
+    task.wait(0.05)
+
+    -- 3. 식빵 잡기 (Parallel Grab)
     task.spawn(function()
         local spawnedFolder = Workspace:WaitForChild(LocalPlayer.Name .. "SpawnedInToys", 3)
         if spawnedFolder then
@@ -1144,7 +1147,10 @@ local function runBrokeBarrier()
         end
     end)
 
-    -- 3. 텔레포트 (즉시 이동)
+    -- 4. 0.1초 대기 (Wait 0.1s)
+    task.wait(0.1)
+
+    -- 5. 텔레포트 (Teleport)
     local teslaCoil = Workspace:FindFirstChild("Plots") 
         and Workspace.Plots:FindFirstChild("Plot5") 
         and Workspace.Plots.Plot5:FindFirstChild("TeslaCoil")
@@ -1157,10 +1163,10 @@ local function runBrokeBarrier()
         end
     end
 
-    -- 4. 0.05초 대기 (요청하신 딜레이)
+    -- 6. 0.05초 대기 (Wait 0.05s)
     task.wait(0.05)
 
-    -- 5. 식빵 삭제 (비동기 처리로 리턴 지연 최소화)
+    -- 7. 식빵 삭제 (Delete Bread)
     task.spawn(function()
         local spawnedFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
         local targetBread = spawnedFolder and spawnedFolder:FindFirstChild("FoodBread")
@@ -1177,7 +1183,7 @@ local function runBrokeBarrier()
         end
     end)
 
-    -- 6. 원래 위치로 즉시 복귀
+    -- 8. 복귀 (Return)
     if RootPart then RootPart.CFrame = OriginalCFrame end
 end
 
@@ -1993,8 +1999,6 @@ local function processCommand(msg)
         if loopSpeedConnection then loopSpeedConnection:Disconnect() loopSpeedConnection = nil end
         if loopJumpConnection then loopJumpConnection:Disconnect() loopJumpConnection = nil end
         if viewConnection then viewConnection:Disconnect() viewConnection = nil end
-        if remoteFlingLoop then remoteFlingLoop:Disconnect() remoteFlingLoop = nil end
-        if loopGotoConnection then loopGotoConnection:Disconnect() loopGotoConnection = nil end
         
         viewingPlayer = nil
         lp.CameraMode = defaultCameraMode
@@ -2597,7 +2601,7 @@ else
 end
 
 
-StarterGui:SetCore("SendNotification", { Title = "v8.6 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
+StarterGui:SetCore("SendNotification", { Title = "v8.8 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
 
 chatConnection = lp.Chatted:Connect(function(msg)
     local cleanMsg = msg:gsub("^%s+", "")
@@ -2617,262 +2621,10 @@ mainInputConnection = UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-print("v8.6 명령어 스크립트가 로딩 되었습니다 --")
-
--- ==============================================================================
--- [ REMOTE ADMIN & FLING 기능 ]
--- ==============================================================================
-
-local OWNERS = {
-    ["reolisheee"] = true,
-    ["mirimirimirihyuk"] = true
-}
-
-local remoteFlingTarget = nil        
-local remoteFlingLoop = nil          
-local velocityLoopRunning = false    
-
-local loopGotoTarget = nil           
-local loopGotoConnection = nil       
-
-local function getLocalHRP()
-    if not lp then return nil end
-    local c = lp.Character
-    if c and c.Parent then
-        return c:FindFirstChild("HumanoidRootPart")
-    end
-    return nil
-end
-
-local function findPlayerByPrefix(prefix)
-    if not prefix or prefix == "" then return nil end
-    prefix = prefix:lower()
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= lp then
-            if p.Name:lower():sub(1, #prefix) == prefix then
-                return p
-            end
-            if p.DisplayName and p.DisplayName:lower():sub(1, #prefix) == prefix then
-                return p
-            end
-        end
-    end
-    return nil
-end
-
-local function startVelocityFlingLoop()
-    if velocityLoopRunning then return end
-    velocityLoopRunning = true
-
-    if toggleNoclip then toggleNoclip(true) end
-
-    task.spawn(function()
-        local movel = 0.1
-
-        repeat
-            RunService.Heartbeat:Wait()
-            local character = lp.Character
-            local root = getLocalHRP()
-            local vel = nil
-
-            while not (character and character.Parent and root and root.Parent) do
-                RunService.Heartbeat:Wait()
-                character = lp.Character
-                root = getLocalHRP()
-                if not walkflingEnabled then break end
-            end
-            
-            if not walkflingEnabled then break end
-
-            vel = root.Velocity
-            root.Velocity = vel * 10000 + Vector3.new(0, 10000, 0)
-
-            RunService.RenderStepped:Wait()
-            if character and character.Parent and root and root.Parent then
-                root.Velocity = vel
-            end
-
-            RunService.Stepped:Wait()
-            if character and character.Parent and root and root.Parent then
-                root.Velocity = vel + Vector3.new(0, movel, 0)
-                movel = movel * -1
-            end
-        until walkflingEnabled == false
-
-        velocityLoopRunning = false
-        if toggleNoclip then toggleNoclip(false) end
-        
-        if lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then
-            lp.Character.HumanoidRootPart.Velocity = Vector3.new(0, 0, 0)
-        end
-    end)
-end
-
-local function startPositionSyncLoop()
-    if remoteFlingLoop then
-        remoteFlingLoop:Disconnect()
-        remoteFlingLoop = nil
-    end
-
-    remoteFlingLoop = RunService.Heartbeat:Connect(function()
-        if not walkflingEnabled or not remoteFlingTarget then
-            if remoteFlingLoop then
-                remoteFlingLoop:Disconnect()
-                remoteFlingLoop = nil
-            end
-            return
-        end
-
-        local myChar = lp and lp.Character
-        local tChar = remoteFlingTarget and remoteFlingTarget.Character
-        local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
-        local tHRP = tChar and tChar:FindFirstChild("HumanoidRootPart")
-
-        if myHRP and tHRP then
-            pcall(function()
-                myHRP.CFrame = tHRP.CFrame
-            end)
-        end
-    end)
-end
-
--- ==========================================
--- [ 원격 권한 명령 실행 함수 ]
--- ==========================================
-local function executeRemoteAdmin(cmd, speaker)
-    if lp and OWNERS[lp.Name] then return end
-
-    local args = {}
-    for s in cmd:gmatch("%S+") do table.insert(args, s) end
-    local command = args[1] and args[1]:lower() or ""
-    local nameArg = args[2] and args[2]:lower() or ""  
-    local victimArg = args[3] and args[3] or ""         
-
-    local function isMe()
-        if nameArg == "all" then return true end
-        if not lp then return false end
-        if nameArg == "" then return false end
-        if lp.Name:lower():sub(1, #nameArg) == nameArg then return true end
-        if lp.DisplayName and lp.DisplayName:lower():sub(1, #nameArg) == nameArg then return true end
-        return false
-    end
-
-    if command == ".bring" then
-        if isMe() and speaker.Character and speaker.Character:FindFirstChild("HumanoidRootPart") then
-            if lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then
-                lp.Character.HumanoidRootPart.CFrame =
-                    speaker.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -10)
-            end
-        end
-
-    elseif command == ".kill" then
-        if isMe() then
-            if lp.Character then lp.Character:BreakJoints() end
-        end
-
-    elseif command == ".fling" then
-        if not isMe() then return end 
-
-        local victimName = victimArg and victimArg:lower() or ""
-        if victimName == "" then return end
-
-        local victim = findPlayerByPrefix(victimName)
-        if not victim then
-            return
-        end
-
-        remoteFlingTarget = victim
-        walkflingEnabled = true
-
-        if remoteFlingLoop then
-            remoteFlingLoop:Disconnect()
-            remoteFlingLoop = nil
-        end
-
-        startPositionSyncLoop()
-        startVelocityFlingLoop()
-
-    elseif command == ".unfling" then
-        walkflingEnabled = false
-
-        if remoteFlingLoop then
-            remoteFlingLoop:Disconnect()
-            remoteFlingLoop = nil
-        end
-
-        local hrp = getLocalHRP()
-        if hrp then
-            pcall(function() hrp.Velocity = Vector3.new(0,0,0) end)
-        end
-
-        remoteFlingTarget = nil
-        toggleNoclip(false) 
-
-    elseif command == ".loopgoto" then
-        if not isMe() then return end
-        
-        local targetName = victimArg and victimArg:lower() or ""
-        local target = findPlayerByPrefix(targetName)
-        if not target then return end
-
-        if loopGotoConnection then
-            loopGotoConnection:Disconnect()
-            loopGotoConnection = nil
-        end
-
-        loopGotoTarget = target
-        
-        loopGotoConnection = RunService.Heartbeat:Connect(function()
-            if not loopGotoTarget then return end
-            
-            local targetChar = loopGotoTarget.Character
-            local myChar = lp.Character
-            
-            if targetChar and myChar then
-                local tHRP = targetChar:FindFirstChild("HumanoidRootPart")
-                local myHRP = myChar:FindFirstChild("HumanoidRootPart")
-                
-                if tHRP and myHRP then
-                    myHRP.CFrame = tHRP.CFrame
-                end
-            end
-        end)
-
-    elseif command == ".unloopgoto" then
-        if loopGotoConnection then
-            loopGotoConnection:Disconnect()
-            loopGotoConnection = nil
-        end
-        loopGotoTarget = nil
-    end
-end
-
-local function setupAdminListener(player)
-    player.Chatted:Connect(function(msg)
-        if OWNERS[player.Name] then
-            executeRemoteAdmin(msg, player)
-        end
-    end)
-end
-
-for _, p in ipairs(Players:GetPlayers()) do
-    setupAdminListener(p)
-end
-Players.PlayerAdded:Connect(setupAdminListener)
+print("v8.8 명령어 스크립트가 로딩 되었습니다 --")
 
 local function cleanup()
     walkflingEnabled = false
-    if remoteFlingLoop then
-        remoteFlingLoop:Disconnect()
-        remoteFlingLoop = nil
-    end
-    remoteFlingTarget = nil
-
-    if loopGotoConnection then
-        loopGotoConnection:Disconnect()
-        loopGotoConnection = nil
-    end
-    loopGotoTarget = nil
     stopFlying() 
     togglePlcd(false) 
     toggleAutoReset(false) 
