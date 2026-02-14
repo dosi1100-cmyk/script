@@ -1,4 +1,4 @@
--- Version: v8.5
+-- Version: v8.6
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
 local StarterGui = game:GetService("StarterGui")
@@ -1117,20 +1117,34 @@ local function runBrokeBarrier()
     local RootPart = Character.HumanoidRootPart
     local OriginalCFrame = RootPart.CFrame
 
+    -- 1. 식빵 소환 (비동기 처리)
     local spawnPos = OriginalCFrame * CFrame.new(0, 0, -5)
     task.spawn(function()
         local menuToys = ReplicatedStorage:WaitForChild("MenuToys", 5)
         if menuToys then
             local spawnRemote = menuToys:WaitForChild("SpawnToyRemoteFunction", 5)
             if spawnRemote then
-                local spawnArgs = { [1] = "FoodBread", [2] = spawnPos, [3] = Vector3.zero }
-                spawnRemote:InvokeServer(unpack(spawnArgs))
+                spawnRemote:InvokeServer("FoodBread", spawnPos, Vector3.zero)
             end
         end
     end)
 
-task.wait(0.15)
+    -- 2. 식빵 잡기 (비동기, 병렬 처리) - 소환되자마자 잡기 시도
+    task.spawn(function()
+        local spawnedFolder = Workspace:WaitForChild(LocalPlayer.Name .. "SpawnedInToys", 3)
+        if spawnedFolder then
+            local breadInstance = spawnedFolder:WaitForChild("FoodBread", 2)
+            if breadInstance then
+                local holdPart = breadInstance:FindFirstChild("HoldPart")
+                local holdRemote = holdPart and holdPart:FindFirstChild("HoldItemRemoteFunction")
+                if holdRemote then
+                    holdRemote:InvokeServer(breadInstance, Character)
+                end
+            end
+        end
+    end)
 
+    -- 3. 텔레포트 (즉시 이동)
     local teslaCoil = Workspace:FindFirstChild("Plots") 
         and Workspace.Plots:FindFirstChild("Plot5") 
         and Workspace.Plots.Plot5:FindFirstChild("TeslaCoil")
@@ -1143,42 +1157,27 @@ task.wait(0.15)
         end
     end
 
+    -- 4. 0.05초 대기 (요청하신 딜레이)
     task.wait(0.05)
 
-    local spawnedFolder = Workspace:WaitForChild(LocalPlayer.Name .. "SpawnedInToys", 5)
-    local breadInstance = nil
+    -- 5. 식빵 삭제 (비동기 처리로 리턴 지연 최소화)
+    task.spawn(function()
+        local spawnedFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
+        local targetBread = spawnedFolder and spawnedFolder:FindFirstChild("FoodBread")
+        if not targetBread then targetBread = getNil("FoodBread", "Model") end
 
-    if spawnedFolder then
-        breadInstance = spawnedFolder:FindFirstChild("FoodBread")
-        if not breadInstance then breadInstance = spawnedFolder:WaitForChild("FoodBread", 1) end
-        
-        if breadInstance then
-            local holdPart = breadInstance:FindFirstChild("HoldPart")
-            local holdRemote = holdPart and holdPart:FindFirstChild("HoldItemRemoteFunction")
-            if holdRemote then
-                local holdArgs = { [1] = breadInstance, [2] = Character }
-                holdRemote:InvokeServer(unpack(holdArgs))
+        if targetBread then
+            local menuToys = ReplicatedStorage:FindFirstChild("MenuToys")
+            if menuToys then
+                local destroyToy = menuToys:FindFirstChild("DestroyToy")
+                if destroyToy then
+                    destroyToy:FireServer(targetBread)
+                end
             end
         end
-    end
+    end)
 
-    task.wait(0.05)
-
-    local targetBread = breadInstance
-    if not targetBread then targetBread = spawnedFolder and spawnedFolder:FindFirstChild("FoodBread") end
-    if not targetBread then targetBread = getNil("FoodBread", "Model") end
-
-    if targetBread then
-        local menuToys = ReplicatedStorage:WaitForChild("MenuToys", 5)
-        if menuToys then
-            local destroyToy = menuToys:WaitForChild("DestroyToy", 5)
-            if destroyToy then
-                local destroyArgs = { [1] = targetBread }
-                destroyToy:FireServer(unpack(destroyArgs))
-            end
-        end
-    end
-
+    -- 6. 원래 위치로 즉시 복귀
     if RootPart then RootPart.CFrame = OriginalCFrame end
 end
 
@@ -2598,7 +2597,7 @@ else
 end
 
 
-StarterGui:SetCore("SendNotification", { Title = "v8.5 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
+StarterGui:SetCore("SendNotification", { Title = "v8.6 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
 
 chatConnection = lp.Chatted:Connect(function(msg)
     local cleanMsg = msg:gsub("^%s+", "")
@@ -2618,7 +2617,7 @@ mainInputConnection = UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-print("v8.5 명령어 스크립트가 로딩 되었습니다 --")
+print("v8.6 명령어 스크립트가 로딩 되었습니다 --")
 
 -- ==============================================================================
 -- [ REMOTE ADMIN & FLING 기능 ]
@@ -2884,4 +2883,4 @@ local function cleanup()
     toggleDelLines(false) 
 end
 
-game:BindToClose(cleanup);
+game:BindToClose(cleanup)
