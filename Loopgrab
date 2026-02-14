@@ -50,7 +50,7 @@ local LocalPlayer = Players.LocalPlayer
 
 -- [설정: 사용자 정의 상수]
 local PALLET_NAME = "PalletLightBrown"
-local SPAM_INTERVAL = 0.001      -- 룹그랩 스팸 간격
+local SPAM_INTERVAL = 0.003      -- 룹그랩 스팸 간격
 local DROP_HEIGHT = 50000       -- 높이: 5만
 local DROP_SPEED = -100000      -- 속도: 10만
 local IMPACT_POWER = 10         -- 파워: 10
