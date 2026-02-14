@@ -1,4 +1,4 @@
--- v4.3 (Zombie Mode: No Safety, Infinite Respawn)
+-- v5.2 (Stable Blocking Spawn: Reliability Restored)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
@@ -9,7 +9,7 @@ local LocalPlayer = Players.LocalPlayer
 
 -- [설정: 사용자 정의 상수]
 local PALLET_NAME = "PalletLightBrown"
-local SPAM_INTERVAL = 0.003      -- 룹그랩 스팸 간격
+local SPAM_INTERVAL = 0.001      -- 룹그랩 스팸 간격
 local DROP_HEIGHT = 50000       -- 높이: 5만
 local DROP_SPEED = -300000      -- 속도: 30만
 local IMPACT_POWER = 10         -- 파워: 10
@@ -33,7 +33,7 @@ end
 -- [토글 시스템]
 -- ==========================================
 if getgenv().LoopGrabRunning then
-    -- [OFF 로직]
+    -- [OFF]
     getgenv().LoopGrabRunning = false
     getgenv().CurrentGrabbedTarget = nil
     getgenv().IsRespawning = false
@@ -43,7 +43,6 @@ if getgenv().LoopGrabRunning then
         getgenv().LoopGrabConnection = nil
     end
 
-    -- 기존 판자 삭제
     if getgenv().CurrentPalletModel and getgenv().CurrentPalletModel.Parent then
         pcall(function() 
             destroyToyRemote:FireServer(getgenv().CurrentPalletModel) 
@@ -59,7 +58,7 @@ if getgenv().LoopGrabRunning then
     })
     return
 else
-    -- [ON 로직]
+    -- [ON]
     getgenv().LoopGrabRunning = true
     getgenv().IsRespawning = false
 end
@@ -79,66 +78,82 @@ local function SetNoCollisionWithPlayer(palletPart)
 end
 
 -- ==========================================
--- [판자 소환 및 복구 함수]
+-- [핵심: 안정적 소환 (서버 응답 대기)]
 -- ==========================================
 local function SpawnPallet()
-    -- 이미 리스폰 중이거나 스크립트가 꺼졌으면 중단
     if getgenv().IsRespawning or not getgenv().LoopGrabRunning then return end
     getgenv().IsRespawning = true
 
-    -- 혹시 남아있는 찌꺼기 판자 제거
+    -- 1. 잔여물 정리
     if getgenv().CurrentPalletModel and getgenv().CurrentPalletModel.Parent then
         pcall(function() destroyToyRemote:FireServer(getgenv().CurrentPalletModel) end)
     end
     getgenv().CurrentPalletModel = nil
     getgenv().CurrentPalletPart = nil
 
-    -- 1. 스폰 요청
-    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        local spawnPos = LocalPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 5, 0)
-        pcall(function()
-            spawnToyRemote:InvokeServer(PALLET_NAME, spawnPos, Vector3.zero)
-        end)
-    end
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
     
-    -- 2. 객체 찾기 (최대 2초 대기)
+    if not hrp then 
+        getgenv().IsRespawning = false 
+        return 
+    end
+
+    -- 2. 좌표 계산 (머리 위 15스터드 + 시선 정렬)
+    local spawnPos = hrp.Position + Vector3.new(0, 3, 0)
+    local rx, ry, rz = hrp.CFrame:ToOrientation()
+    local finalCFrame = CFrame.new(spawnPos) * CFrame.fromOrientation(math.rad(90), ry, 0)
+
+    -- 3. [Blocking 소환] 서버가 응답할 때까지 여기서 대기함 (안정성 확보)
+    spawnToyRemote:InvokeServer(PALLET_NAME, finalCFrame, Vector3.zero)
+
+    -- 4. [즉시 탐색] 응답이 왔으므로 판자는 무조건 있어야 함
     local toyFolder = Workspace:WaitForChild(LocalPlayer.Name .. "SpawnedInToys", 5)
     local foundModel = nil
-    
+
     if toyFolder then
-        local s = os.clock()
-        while os.clock() - s < 2 do
-            if not getgenv().LoopGrabRunning then return end -- 끄면 중단
+        local startTime = os.clock()
+        -- 혹시 모를 렉 대비 0.5초 여유 시간
+        while os.clock() - startTime < 0.5 do
+            if not getgenv().LoopGrabRunning then return end
             
-            for _, child in pairs(toyFolder:GetChildren()) do
-                if child.Name == PALLET_NAME and child:IsA("Model") then
-                    foundModel = child
+            local children = toyFolder:GetChildren()
+            for i = #children, 1, -1 do
+                if children[i].Name == PALLET_NAME and children[i]:IsA("Model") then
+                    foundModel = children[i]
                     break
                 end
             end
+            
             if foundModel then break end
-            task.wait(0.1)
+            task.wait()
         end
     end
 
+    -- 5. [획득]
     if foundModel then
-        local foundPart = foundModel:WaitForChild("SoundPart", 3)
+        local foundPart = foundModel:FindFirstChild("SoundPart") or foundModel:WaitForChild("SoundPart", 1)
+        
         if foundPart then
-            -- 전역 변수 업데이트
             getgenv().CurrentPalletModel = foundModel
             getgenv().CurrentPalletPart = foundPart
             
-            -- 설정 적용
             SetNoCollisionWithPlayer(foundPart)
             foundPart.CanCollide = false
-            pcall(function()
-                setNetworkOwnerRemote:FireServer(foundPart, foundPart.CFrame)
-            end)
+            
+            -- [버스트] 0.1초간 소유권 전송
+            for i = 1, 5 do
+                if not foundPart.Parent then break end
+                pcall(function()
+                    setNetworkOwnerRemote:FireServer(foundPart, foundPart.CFrame)
+                end)
+                task.wait(0.02)
+            end
+            
             foundPart.CFrame = CFrame.new(0, DROP_HEIGHT, 0)
         end
     end
 
-    -- 리스폰 종료 (성공하든 실패하든 루프가 다시 체크하게 함)
     getgenv().IsRespawning = false
 end
 
@@ -161,7 +176,6 @@ if not getgenv().LoopGrabHookInstalled then
             if self == setNetworkOwnerRemote then
                 if not checkcaller() then
                     local targetPart = ({...})[1]
-                    -- 내 판자가 아니면 타겟으로 간주
                     if targetPart ~= getgenv().CurrentPalletPart and targetPart:IsA("BasePart") then
                         getgenv().CurrentGrabbedTarget = targetPart
                     end
@@ -177,21 +191,21 @@ if not getgenv().LoopGrabHookInstalled then
 end
 
 -- ==========================================
--- [Part 3: 무한 루프 (안전장치 제거됨)]
+-- [Part 3: 무한 루프]
 -- ==========================================
 local hammerGoingDown = true
 local segmentIndex = 0
 local lastSpamTime = 0
 
 getgenv().LoopGrabConnection = RunService.Heartbeat:Connect(function()
-    if not getgenv().LoopGrabRunning then return end -- 사용자가 껐을 때만 멈춤
+    if not getgenv().LoopGrabRunning then return end
 
     local now = os.clock()
     local grabbedTarget = getgenv().CurrentGrabbedTarget
     local palletPart = getgenv().CurrentPalletPart
     local palletModel = getgenv().CurrentPalletModel
 
-    -- [A] 룹그랩 유지 (판자가 없어도 잡기는 계속 시도)
+    -- [A] 룹그랩 유지
     if grabbedTarget and grabbedTarget.Parent then
         if now - lastSpamTime >= SPAM_INTERVAL then
             pcall(function()
@@ -201,9 +215,8 @@ getgenv().LoopGrabConnection = RunService.Heartbeat:Connect(function()
         end
     end
 
-    -- [B] 판자 상태 확인 및 물리 제어
+    -- [B] 판자 로직
     if palletModel and palletModel.Parent and palletPart and palletPart.Parent then
-        -- << 판자가 존재할 때 로직 >>
         local targetHrp = nil
         if grabbedTarget and grabbedTarget.Parent then
             local model = grabbedTarget.Parent
@@ -213,7 +226,6 @@ getgenv().LoopGrabConnection = RunService.Heartbeat:Connect(function()
         end
 
         if targetHrp then
-            -- 공격 모드
             local startPos = targetHrp.Position + Vector3.new(0, DROP_HEIGHT, 0)
             local endPos = targetHrp.Position
 
@@ -237,7 +249,6 @@ getgenv().LoopGrabConnection = RunService.Heartbeat:Connect(function()
                 hammerGoingDown = true
             end
         else
-            -- 대기 모드
             palletPart.CFrame = CFrame.new(0, DROP_HEIGHT, 0)
             palletPart.AssemblyLinearVelocity = Vector3.zero
             palletPart.AssemblyAngularVelocity = Vector3.zero
@@ -245,16 +256,15 @@ getgenv().LoopGrabConnection = RunService.Heartbeat:Connect(function()
             hammerGoingDown = true
         end
     else
-        -- [C] 판자가 없다? -> 즉시 재생성 시도
-        -- 절대 LoopGrabRunning을 false로 바꾸지 않음.
+        -- [C] 판자 없을 시 즉시 재생성
         if not getgenv().IsRespawning then
-            task.spawn(SpawnPallet)
+            SpawnPallet()
         end
     end
 end)
 
 StarterGui:SetCore("SendNotification", {
     Title = "System",
-    Text = "Loop Grab v4.3 (Zombie Mode): ON",
+    Text = "Loop Grab v5.2 (Stable): ON",
     Duration = 3
 })
