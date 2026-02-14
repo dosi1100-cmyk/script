@@ -324,6 +324,8 @@ local function toggleAntiAfk(state)
     end
 end
 
+if game.PlaceId ~= 6961824067 then return end
+
 loadstring(game:HttpGet('https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/kickalarm'))()
 
 -- [Anti-Lag 함수]
