@@ -25,7 +25,7 @@ local function getOrCreateGui()
 		container.BackgroundTransparency = 1 -- 컨테이너 자체는 안 보임
 		container.AnchorPoint = Vector2.new(0, 1) -- 기준점: 왼쪽 아래
 		container.Position = UDim2.new(0, 20, 1, -20) -- 위치: 화면 왼쪽 아래 (여백 20)
-		container.Size = UDim2.new(0, 400, 0, 600) -- 알림이 쌓일 공간 확보
+		container.Size = UDim2.new(0, 500, 0, 600) -- 알림이 쌓일 공간 확보 (너비 약간 늘림)
 		
 		-- [자동 정렬 레이아웃] (밑에서 위로 쌓이게 함)
 		local layout = Instance.new("UIListLayout")
@@ -50,7 +50,7 @@ local function showNotification(targetName)
 	bgFrame.BorderColor3 = Color3.new(1, 0, 0)     -- 테두리: 빨간색
 	bgFrame.BorderSizePixel = 3                    -- 테두리 두께
 	bgFrame.BorderMode = Enum.BorderMode.Outline
-	bgFrame.Size = UDim2.new(0, 350, 0, 50)        -- 크기 고정
+	bgFrame.Size = UDim2.new(0, 450, 0, 50)        -- 크기 (이름이 길어질 수 있어 가로를 450으로 늘림)
 	
 	-- [텍스트 라벨] (하얀색 글씨 + 테두리 없음)
 	local label = Instance.new("TextLabel")
@@ -105,7 +105,9 @@ Workspace.ChildAdded:Connect(function(child)
 		if targetPos then
 			local victim = getClosestPlayer(targetPos)
 			if victim then
-				showNotification(victim.Name)
+				-- [수정된 부분] 닉네임 (@아이디) 형식으로 조합
+				local formattedName = victim.DisplayName .. " (@" .. victim.Name .. ")"
+				showNotification(formattedName)
 			else
 				showNotification("누군가")
 			end
@@ -113,4 +115,4 @@ Workspace.ChildAdded:Connect(function(child)
 	end
 end)
 
-print("킥 알람 활설화 됨")
+print("-- 킥 알람 활성화 됨")
