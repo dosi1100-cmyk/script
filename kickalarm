@@ -112,3 +112,5 @@ Workspace.ChildAdded:Connect(function(child)
 		end
 	end
 end)
+
+print("킥 알람 활설화 됨")
