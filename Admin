@@ -1562,6 +1562,11 @@ local function processCommand(msg)
             if #Players:GetPlayers() <= 1 then TeleportService:Teleport(game.PlaceId, lp)
             else TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, lp) end
         end)
+
+    elseif lowerMsg == ".kg" then
+        loadstring(game:HttpGet('https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/KickGrab'))()
+    elseif lowerMsg == ".unkg" then    
+        loadstring(game:HttpGet('https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/KickGrab'))()
     
     elseif lowerMsg == ".svhop" then
         StarterGui:SetCore("SendNotification", {Title = "서버 이동", Text = "다른 서버를 찾는 중...", Duration = 3})
