@@ -1,4 +1,4 @@
--- Version: v8.8
+-- Version: v8.9
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
 local StarterGui = game:GetService("StarterGui")
@@ -1129,10 +1129,10 @@ local function runBrokeBarrier()
         end
     end)
 
-    -- 2. 0.05초 대기 (Wait 0.05s)
+    -- 식빵이 생성될 때까지 아주 잠깐 대기 (안정성 확보용)
     task.wait(0.05)
 
-    -- 3. 식빵 잡기 (Parallel Grab)
+    -- 2. 식빵 잡기 (Parallel Grab)
     task.spawn(function()
         local spawnedFolder = Workspace:WaitForChild(LocalPlayer.Name .. "SpawnedInToys", 3)
         if spawnedFolder then
@@ -1147,10 +1147,10 @@ local function runBrokeBarrier()
         end
     end)
 
-    -- 4. 0.1초 대기 (Wait 0.1s)
-    task.wait(0.1)
+    -- 3. 잡고 나서 0.2초 대기
+    task.wait(0.2)
 
-    -- 5. 텔레포트 (Teleport)
+    -- 4. 텔레포트 (Teleport)
     local teslaCoil = Workspace:FindFirstChild("Plots") 
         and Workspace.Plots:FindFirstChild("Plot5") 
         and Workspace.Plots.Plot5:FindFirstChild("TeslaCoil")
@@ -1163,10 +1163,10 @@ local function runBrokeBarrier()
         end
     end
 
-    -- 6. 0.05초 대기 (Wait 0.05s)
-    task.wait(0.05)
+    -- 5. 텔레포트 후 0.07초 대기
+    task.wait(0.07)
 
-    -- 7. 식빵 삭제 (Delete Bread)
+    -- 6. 식빵 삭제 (Delete Bread)
     task.spawn(function()
         local spawnedFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
         local targetBread = spawnedFolder and spawnedFolder:FindFirstChild("FoodBread")
@@ -1182,6 +1182,9 @@ local function runBrokeBarrier()
             end
         end
     end)
+
+    -- 7. 삭제 후 0.1초 대기
+    task.wait(0.1)
 
     -- 8. 복귀 (Return)
     if RootPart then RootPart.CFrame = OriginalCFrame end
@@ -2601,7 +2604,7 @@ else
 end
 
 
-StarterGui:SetCore("SendNotification", { Title = "v8.8 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
+StarterGui:SetCore("SendNotification", { Title = "v8.9 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
 
 chatConnection = lp.Chatted:Connect(function(msg)
     local cleanMsg = msg:gsub("^%s+", "")
@@ -2621,7 +2624,7 @@ mainInputConnection = UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-print("v8.8 명령어 스크립트가 로딩 되었습니다 --")
+print("v8.9 명령어 스크립트가 로딩 되었습니다 --")
 
 local function cleanup()
     walkflingEnabled = false
