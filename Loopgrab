@@ -140,8 +140,8 @@ local function SpawnPallet()
         return 
     end
 
-    -- 2. 좌표 계산 (머리 위 15스터드 + 시선 정렬)
-    local spawnPos = hrp.Position + Vector3.new(0, 15, 0)
+    -- 2. 좌표 계산 (머리 위 5스터드 + 시선 정렬)
+    local spawnPos = hrp.Position + Vector3.new(0, 5, 0)
     local rx, ry, rz = hrp.CFrame:ToOrientation()
     local finalCFrame = CFrame.new(spawnPos) * CFrame.fromOrientation(math.rad(90), ry, 0)
 
