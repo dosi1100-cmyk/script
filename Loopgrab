@@ -1,4 +1,4 @@
--- v5.3
+-- v5.4
 local StarterGui = game:GetService("StarterGui")
 
 -- ==========================================
@@ -119,7 +119,7 @@ local function SetNoCollisionWithPlayer(palletPart)
 end
 
 -- ==========================================
--- [핵심: 안정적 소환 (서버 응답 대기)]
+-- [핵심: 고속 소환 (딜레이 무시)]
 -- ==========================================
 local function SpawnPallet()
     if getgenv().IsRespawning or not getgenv().LoopGrabRunning then return end
@@ -145,35 +145,35 @@ local function SpawnPallet()
     local rx, ry, rz = hrp.CFrame:ToOrientation()
     local finalCFrame = CFrame.new(spawnPos) * CFrame.fromOrientation(math.rad(90), ry, 0)
 
-    -- 3. [Blocking 소환] 서버가 응답할 때까지 여기서 대기함 (안정성 확보)
-    spawnToyRemote:InvokeServer(PALLET_NAME, finalCFrame, Vector3.zero)
+    -- 3. [수정됨] 서버 응답 대기 제거 -> 0.3초 무조건 대기
+    -- InvokeServer가 코드를 멈추지 않게 별도 스레드로 실행 (Fire-and-Forget)
+    task.spawn(function()
+        pcall(function()
+            spawnToyRemote:InvokeServer(PALLET_NAME, finalCFrame, Vector3.zero)
+        end)
+    end)
 
-    -- 4. [즉시 탐색] 응답이 왔으므로 판자는 무조건 있어야 함
-    local toyFolder = Workspace:WaitForChild(LocalPlayer.Name .. "SpawnedInToys", 5)
+    -- 요청하신 대로 서버 렉 무시하고 딱 0.3초만 대기
+    task.wait(0.3)
+
+    -- 4. [즉시 탐색] 대기 루프 없이 바로 획득 시도
+    local toyFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
     local foundModel = nil
 
     if toyFolder then
-        local startTime = os.clock()
-        -- 혹시 모를 렉 대비 0.5초 여유 시간
-        while os.clock() - startTime < 0.5 do
-            if not getgenv().LoopGrabRunning then return end
-            
-            local children = toyFolder:GetChildren()
-            for i = #children, 1, -1 do
-                if children[i].Name == PALLET_NAME and children[i]:IsA("Model") then
-                    foundModel = children[i]
-                    break
-                end
+        -- 폴더 스캔하여 모델 찾기 (대기 없이 즉시 확인)
+        local children = toyFolder:GetChildren()
+        for i = #children, 1, -1 do
+            if children[i].Name == PALLET_NAME and children[i]:IsA("Model") then
+                foundModel = children[i]
+                break
             end
-            
-            if foundModel then break end
-            task.wait()
         end
     end
 
     -- 5. [획득]
     if foundModel then
-        local foundPart = foundModel:FindFirstChild("SoundPart") or foundModel:WaitForChild("SoundPart", 1)
+        local foundPart = foundModel:FindFirstChild("SoundPart")
         
         if foundPart then
             getgenv().CurrentPalletModel = foundModel
@@ -306,6 +306,6 @@ end)
 
 StarterGui:SetCore("SendNotification", {
     Title = "System",
-    Text = "Loop Grab v5.3 : ON",
+    Text = "Loop Grab v5.4 : ON",
     Duration = 3
 })
