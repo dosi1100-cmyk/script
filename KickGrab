@@ -1,0 +1,76 @@
+-- v1.2
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local StarterGui = game:GetService("StarterGui")
+
+-- getgenv()를 사용하여 실행 상태 관리 (토글 기능)
+if getgenv().KickGrabFastRunning then
+    -- 이미 실행 중이면 끄기 (OFF)
+    getgenv().KickGrabFastRunning = false
+    
+    StarterGui:SetCore("SendNotification", {
+        Title = "Kick Grab (Fast v1.2)",
+        Text = "스크립트가 종료되었습니다. [OFF]",
+        Duration = 3
+    })
+else
+    -- 실행 중이 아니면 켜기 (ON)
+    getgenv().KickGrabFastRunning = true
+
+    StarterGui:SetCore("SendNotification", {
+        Title = "Kick Grab (Fast v1.2)",
+        Text = "초고속 반응 모드로 실행되었습니다. [ON]",
+        Duration = 3
+    })
+
+    local localPlayer = Players.LocalPlayer
+
+    -- 별도 스레드에서 루프 실행
+    task.spawn(function()
+        while getgenv().KickGrabFastRunning do
+            -- 0.016초 대기 (요청하신 실행 주기)
+            task.wait(0.016)
+
+            local myCharacter = localPlayer.Character
+            if not myCharacter then continue end
+
+            local myTorso = myCharacter:FindFirstChild("Torso") or myCharacter:FindFirstChild("HumanoidRootPart")
+            if not myTorso then continue end
+
+            local grabParts = workspace:FindFirstChild("GrabParts")
+            if grabParts then
+                for _, grabPart in ipairs(grabParts:GetChildren()) do
+                    if grabPart.Name == "GrabPart" then
+                        local weld = grabPart:FindFirstChildOfClass("WeldConstraint")
+                        if not weld then continue end
+
+                        local part1 = weld.Part1
+                        if not part1 then continue end
+
+                        local ownerPlayer
+                        for _, player in ipairs(Players:GetPlayers()) do
+                            if player ~= localPlayer and player.Character and part1:IsDescendantOf(player.Character) then
+                                ownerPlayer = player
+                                break
+                            end
+                        end
+
+                        if not ownerPlayer then continue end
+                        local tgtTorso = ownerPlayer.Character:FindFirstChild("HumanoidRootPart")
+                        if not tgtTorso then continue end
+
+                        -- [[ 딜레이 없는 즉시 실행 블록 ]] --
+                        -- 명령 간의 wait()를 제거하여 서버에 최대한 동시에 도달하도록 처리
+                        ReplicatedStorage.GrabEvents.SetNetworkOwner:FireServer(tgtTorso, myTorso.CFrame)
+                        ReplicatedStorage.GrabEvents.DestroyGrabLine:FireServer(tgtTorso, myTorso.CFrame)
+                        ReplicatedStorage.GrabEvents.CreateGrabLine:FireServer(tgtTorso, CFrame.new(0,0,0))
+                        
+                        -- 물리 고정 (흔들림 방지)
+                        tgtTorso.AssemblyLinearVelocity = Vector3.zero
+                        tgtTorso.AssemblyAngularVelocity = Vector3.zero
+                    end
+                end
+            end
+        end
+    end)
+end
