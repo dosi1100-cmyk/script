@@ -1,118 +1,126 @@
+-- Version: v1.0
+-- Kick Notification Script (UI Removed)
+
 local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local plr = Players.LocalPlayer
 
--- [설정] 알림이 떠있는 시간 (5초)
-local DISPLAY_DURATION = 5
+-- 설정 변수
+local ifKickThenT = true -- 기능 자동 활성화
+local anchoredCache = {}
 
--- GUI 초기화 함수 (컨테이너 생성)
-local function getOrCreateGui()
-	local player = Players.LocalPlayer
-	if not player then return nil end
-	
-	local playerGui = player:WaitForChild("PlayerGui")
-	local screenGui = playerGui:FindFirstChild("KickAlertSystem")
-	
-	if not screenGui then
-		screenGui = Instance.new("ScreenGui")
-		screenGui.Name = "KickAlertSystem"
-		screenGui.ResetOnSpawn = false
-		screenGui.Parent = playerGui
-		
-		-- [알림이 쌓일 투명 컨테이너]
-		local container = Instance.new("Frame")
-		container.Name = "Container"
-		container.Parent = screenGui
-		container.BackgroundTransparency = 1 -- 컨테이너 자체는 안 보임
-		container.AnchorPoint = Vector2.new(0, 1) -- 기준점: 왼쪽 아래
-		container.Position = UDim2.new(0, 20, 1, -20) -- 위치: 화면 왼쪽 아래 (여백 20)
-		container.Size = UDim2.new(0, 500, 0, 600) -- 알림이 쌓일 공간 확보 (너비 약간 늘림)
-		
-		-- [자동 정렬 레이아웃] (밑에서 위로 쌓이게 함)
-		local layout = Instance.new("UIListLayout")
-		layout.Parent = container
-		layout.SortOrder = Enum.SortOrder.LayoutOrder
-		layout.VerticalAlignment = Enum.VerticalAlignment.Bottom -- 바닥부터 채움
-		layout.Padding = UDim.new(0, 10) -- 알림 사이 간격 10px
-	end
-	
-	return screenGui.Container
+----------------------------------------------------------------------------------------- [ 커스텀 알림 UI ]
+local function CustomNotify(title, content, duration)
+    -- GUI 생성
+    local guiName = "KickNotifyGUI_" .. math.random(1000,9999)
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = guiName
+    screenGui.ResetOnSpawn = false
+    
+    -- 보안을 위해 CoreGui에 넣거나, 불가능하면 PlayerGui에 넣음
+    if syn and syn.protect_gui then
+        syn.protect_gui(screenGui)
+        screenGui.Parent = CoreGui
+    elseif gethui then
+        screenGui.Parent = gethui()
+    else
+        screenGui.Parent = CoreGui
+    end
+
+    -- 메인 프레임 (검은색 배경, 빨간색 테두리)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 300, 0, 60)
+    frame.Position = UDim2.new(0, 20, 1, -100) -- 왼쪽 하단 배치
+    frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- 검은색 배경
+    frame.BorderSizePixel = 2
+    frame.BorderColor3 = Color3.fromRGB(255, 0, 0) -- 빨간색 테두리
+    frame.Parent = screenGui
+
+    -- 제목 텍스트 (하얀색)
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(1, -10, 0, 25)
+    titleLabel.Position = UDim2.new(0, 10, 0, 5)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = title
+    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255) -- 하얀색 글자
+    titleLabel.TextSize = 18
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Parent = frame
+
+    -- 내용 텍스트 (하얀색)
+    local contentLabel = Instance.new("TextLabel")
+    contentLabel.Size = UDim2.new(1, -10, 0, 25)
+    contentLabel.Position = UDim2.new(0, 10, 0, 30)
+    contentLabel.BackgroundTransparency = 1
+    contentLabel.Text = content
+    contentLabel.TextColor3 = Color3.fromRGB(230, 230, 230) -- 약간 어두운 하얀색 글자
+    contentLabel.TextSize = 14
+    contentLabel.Font = Enum.Font.Gotham
+    contentLabel.TextXAlignment = Enum.TextXAlignment.Left
+    contentLabel.Parent = frame
+
+    -- 지정된 시간 후 삭제
+    task.delay(duration, function()
+        if screenGui then screenGui:Destroy() end
+    end)
 end
 
--- 1. 알림 UI 생성 함수
-local function showNotification(targetName)
-	local container = getOrCreateGui()
-	if not container then return end
-	
-	-- [배경 프레임] (검은색 배경 + 빨간색 테두리)
-	local bgFrame = Instance.new("Frame")
-	bgFrame.Name = "AlertFrame"
-	bgFrame.BackgroundColor3 = Color3.new(0, 0, 0) -- 배경: 검은색
-	bgFrame.BorderColor3 = Color3.new(1, 0, 0)     -- 테두리: 빨간색
-	bgFrame.BorderSizePixel = 3                    -- 테두리 두께
-	bgFrame.BorderMode = Enum.BorderMode.Outline
-	bgFrame.Size = UDim2.new(0, 450, 0, 50)        -- 크기 (이름이 길어질 수 있어 가로를 450으로 늘림)
-	
-	-- [텍스트 라벨] (하얀색 글씨 + 테두리 없음)
-	local label = Instance.new("TextLabel")
-	label.Parent = bgFrame
-	label.Size = UDim2.new(1, 0, 1, 0)
-	label.BackgroundTransparency = 1
-	label.Text = targetName .. " 님이 킥을 당했습니다"
-	label.TextColor3 = Color3.new(1, 1, 1) -- 글자: 하얀색
-	label.TextStrokeTransparency = 1       -- 글자 테두리 없음
-	label.Font = Enum.Font.SourceSansBold
-	label.TextSize = 25
-	
-	-- 컨테이너에 넣으면 자동으로 위치가 잡힘
-	bgFrame.Parent = container
-	
-	-- 5초 뒤 삭제
-	task.delay(DISPLAY_DURATION, function()
-		if bgFrame then bgFrame:Destroy() end
-	end)
+----------------------------------------------------------------------------------------- [ 핵심 기능 로직 ]
+
+local function ifKickThenF()
+    -- 이미 접속해 있는 플레이어 캐시 초기화
+    for _, otherPlr in ipairs(Players:GetPlayers()) do
+        if otherPlr.Character then
+            local hrp = otherPlr.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                anchoredCache[otherPlr] = hrp.Anchored == true
+            end
+        end
+    end
+
+    -- 플레이어 입장 시 추적 시작
+    Players.PlayerAdded:Connect(function(newPlr)
+        newPlr.CharacterAdded:Connect(function(char)
+            local hrp = char:WaitForChild("HumanoidRootPart", 5)
+            if hrp then
+                anchoredCache[newPlr] = false
+            end
+        end)
+    end)
+
+    -- 플레이어 퇴장 시 강퇴 여부 확인 및 알림
+    Players.PlayerRemoving:Connect(function(leavingPlr)
+        if anchoredCache[leavingPlr] == true then
+            local DISP = leavingPlr.DisplayName
+            local NAP = leavingPlr.Name
+            
+            -- 커스텀 알림 호출
+            CustomNotify("[ Kick Detected ]", "[" .. DISP .. "] ( @" .. NAP ..  ")", 7)
+        end
+        anchoredCache[leavingPlr] = nil
+    end)
+
+    -- 상태 감지 루프
+    task.spawn(function()
+        while ifKickThenT do
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p.Character then
+                    local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+                    if hrp then
+                        -- 플레이어가 앵커(Anchored) 상태인지 지속적으로 확인
+                        anchoredCache[p] = hrp.Anchored == true
+                    end
+                end
+            end
+            task.wait(0.3) -- 부하 방지를 위한 딜레이
+        end
+    end)
 end
 
--- 2. 가장 가까운 플레이어 찾는 함수
-local function getClosestPlayer(position)
-	local closestPlayer = nil
-	local minDistance = math.huge 
-	
-	for _, p in pairs(Players:GetPlayers()) do
-		if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-			local distance = (p.Character.HumanoidRootPart.Position - position).Magnitude
-			if distance < minDistance then
-				minDistance = distance
-				closestPlayer = p
-			end
-		end
-	end
-	return closestPlayer
-end
+-- 기능 실행
+ifKickThenF()
 
--- 3. Workspace 감시 로직
-Workspace.ChildAdded:Connect(function(child)
-	if child.Name == "BlackHoleKick" then
-		task.wait() -- 로딩 대기
-		
-		local targetPos = nil
-		
-		if child:IsA("BasePart") then
-			targetPos = child.Position
-		elseif child:IsA("Model") then
-			targetPos = child:GetPivot().Position
-		end
-		
-		if targetPos then
-			local victim = getClosestPlayer(targetPos)
-			if victim then
-				-- [수정된 부분] 닉네임 (@아이디) 형식으로 조합
-				local formattedName = victim.DisplayName .. " (@" .. victim.Name .. ")"
-				showNotification(formattedName)
-			else
-				showNotification("누군가")
-			end
-		end
-	end
-end)
-
-print("-- 킥 알람 활성화 됨")
+-- 실행 확인용 알림
+CustomNotify("Script Loaded", "Kick Notification Active (v1.0)", 3)
