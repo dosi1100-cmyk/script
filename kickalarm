@@ -1,5 +1,5 @@
--- Version: v1.0
--- Kick Notification Script (UI Removed)
+-- Version: v1.1
+-- Kick Notification Script (UI Removed & Text Resized)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -30,33 +30,33 @@ local function CustomNotify(title, content, duration)
 
     -- 메인 프레임 (검은색 배경, 빨간색 테두리)
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0, 300, 0, 60)
+    frame.Size = UDim2.new(0, 320, 0, 65) -- 텍스트 크기에 맞춰 프레임도 약간 조정
     frame.Position = UDim2.new(0, 20, 1, -100) -- 왼쪽 하단 배치
     frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- 검은색 배경
     frame.BorderSizePixel = 2
     frame.BorderColor3 = Color3.fromRGB(255, 0, 0) -- 빨간색 테두리
     frame.Parent = screenGui
 
-    -- 제목 텍스트 (하얀색)
+    -- 제목 텍스트 (하얀색, 크기 증가 18 -> 20)
     local titleLabel = Instance.new("TextLabel")
     titleLabel.Size = UDim2.new(1, -10, 0, 25)
     titleLabel.Position = UDim2.new(0, 10, 0, 5)
     titleLabel.BackgroundTransparency = 1
     titleLabel.Text = title
     titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255) -- 하얀색 글자
-    titleLabel.TextSize = 18
+    titleLabel.TextSize = 20 
     titleLabel.Font = Enum.Font.GothamBold
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.Parent = frame
 
-    -- 내용 텍스트 (하얀색)
+    -- 내용 텍스트 (이름 표시, 크기 증가 14 -> 17)
     local contentLabel = Instance.new("TextLabel")
     contentLabel.Size = UDim2.new(1, -10, 0, 25)
-    contentLabel.Position = UDim2.new(0, 10, 0, 30)
+    contentLabel.Position = UDim2.new(0, 10, 0, 32)
     contentLabel.BackgroundTransparency = 1
     contentLabel.Text = content
     contentLabel.TextColor3 = Color3.fromRGB(230, 230, 230) -- 약간 어두운 하얀색 글자
-    contentLabel.TextSize = 14
+    contentLabel.TextSize = 17
     contentLabel.Font = Enum.Font.Gotham
     contentLabel.TextXAlignment = Enum.TextXAlignment.Left
     contentLabel.Parent = frame
@@ -123,4 +123,4 @@ end
 ifKickThenF()
 
 -- 실행 확인용 알림
-CustomNotify("Script Loaded", "Kick Notification Active (v1.0)", 3)
+CustomNotify("Script Loaded", "Kick Notification Active", 3)
