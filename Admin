@@ -1,4 +1,4 @@
--- Version: v9.1
+-- Version: v9.2
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
 local StarterGui = game:GetService("StarterGui")
@@ -55,6 +55,11 @@ local walkflingEnabled = false
 
 -- [Noclip 관련 변수]
 local noclipConnection = nil
+
+-- [Spin 관련 변수]
+local spinEnabled = false
+local spinSpeed = 10
+local spinConnection = nil
 
 -- [Fly 및 VFly 관련 변수]
 local flyConnection = nil
@@ -762,6 +767,41 @@ local function toggleNoclip(state)
         end)
     else
         if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
+    end
+end
+
+-- [Spin 기능]
+local function toggleSpin(state, speed)
+    if state then
+        if spinEnabled then
+            StarterGui:SetCore("SendNotification", {Title = "Spin", Text = "이미 실행 중입니다.", Duration = 2})
+            return
+        end
+        
+        spinSpeed = tonumber(speed) or 10
+        if spinSpeed <= 0 then spinSpeed = 10 end
+        spinEnabled = true
+        
+        if spinConnection then spinConnection:Disconnect() end
+        spinConnection = RunService.Heartbeat:Connect(function()
+            if not spinEnabled then return end
+            local char = lp.Character
+            if not char then return end
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if not hrp then return end
+            
+            -- CFrame을 회전시킴
+            hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(spinSpeed), 0)
+        end)
+        
+        StarterGui:SetCore("SendNotification", {Title = "Spin 활성화", Text = "회전 속도: " .. spinSpeed, Duration = 3})
+    else
+        spinEnabled = false
+        if spinConnection then
+            spinConnection:Disconnect()
+            spinConnection = nil
+        end
+        StarterGui:SetCore("SendNotification", {Title = "Spin 해제", Text = "회전이 멈췄습니다.", Duration = 3})
     end
 end
 
@@ -1729,6 +1769,16 @@ local function processCommand(msg)
     elseif lowerMsg == ".unfly" then stopFlying()
     elseif lowerMsg == ".unvfly" then stopFlying()
 
+    elseif lowerMsg:sub(1, 6) == ".spin " then
+        local speed = tonumber(msg:sub(7))
+        if speed then
+            toggleSpin(true, speed)
+        else
+            StarterGui:SetCore("SendNotification", {Title = "사용법", Text = ".spin [숫자] - 숫자만큼 속도로 회전", Duration = 4})
+        end
+    elseif lowerMsg == ".unspin" then
+        toggleSpin(false)
+
     elseif lowerMsg == ".thirdp" then
         lp.CameraMode = Enum.CameraMode.Classic
         lp.CameraMaxZoomDistance = 999
@@ -1865,6 +1915,7 @@ local function processCommand(msg)
         stopFlying()
         toggleNoclip(false)
         walkflingEnabled = false
+        toggleSpin(false)
         togglePlcd(false) 
         toggleAutoReset(false) 
         toggleTakeFood(false)  
@@ -2034,6 +2085,8 @@ local function createHelpGui()
 • .unfly : 일반 날기 해제
 • .vfly [속도] : 차량과 함께 날기 (Velocity 방식)
 • .unvfly : 차량 날기 해제
+• .spin [속도] : 캐릭터 회전 (숫자만큼 속도로 회전)
+• .unspin : 회전 멈춤
 • .to [이름] : 대상에게 이동
 • .join [이름] : 친구 게임 서버 참가(같은 게임)
 • .view [이름] : 3인칭 관전 모드
@@ -2486,7 +2539,7 @@ else
 end
 
 
-StarterGui:SetCore("SendNotification", { Title = "v9.1 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
+StarterGui:SetCore("SendNotification", { Title = "v9.2 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
 
 chatConnection = lp.Chatted:Connect(function(msg)
     local cleanMsg = msg:gsub("^%s+", "")
@@ -2506,7 +2559,7 @@ mainInputConnection = UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-print("v9.1 명령어 스크립트가 로딩 되었습니다 --")
+print("v9.2 명령어 스크립트가 로딩 되었습니다 --")
 
 local function cleanup()
     walkflingEnabled = false
@@ -2517,6 +2570,7 @@ local function cleanup()
     toggleAntiBomb(false) 
     toggleAntiInPlots(false) 
     toggleDelLines(false) 
+    toggleSpin(false)
 end
 
 game:BindToClose(cleanup)
