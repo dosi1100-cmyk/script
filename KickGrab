@@ -1,126 +1,76 @@
--- Version: v1.1
--- Kick Notification Script (UI Removed & Text Resized)
-
+-- v1.2
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local CoreGui = game:GetService("CoreGui")
-local plr = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local StarterGui = game:GetService("StarterGui")
 
--- 설정 변수
-local ifKickThenT = true -- 기능 자동 활성화
-local anchoredCache = {}
-
------------------------------------------------------------------------------------------ [ 커스텀 알림 UI ]
-local function CustomNotify(title, content, duration)
-    -- GUI 생성
-    local guiName = "KickNotifyGUI_" .. math.random(1000,9999)
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = guiName
-    screenGui.ResetOnSpawn = false
+-- getgenv()를 사용하여 실행 상태 관리 (토글 기능)
+if getgenv().KickGrabFastRunning then
+    -- 이미 실행 중이면 끄기 (OFF)
+    getgenv().KickGrabFastRunning = false
     
-    -- 보안을 위해 CoreGui에 넣거나, 불가능하면 PlayerGui에 넣음
-    if syn and syn.protect_gui then
-        syn.protect_gui(screenGui)
-        screenGui.Parent = CoreGui
-    elseif gethui then
-        screenGui.Parent = gethui()
-    else
-        screenGui.Parent = CoreGui
-    end
+    StarterGui:SetCore("SendNotification", {
+        Title = "Kick Grab (Fast v1.2)",
+        Text = "스크립트가 종료되었습니다. [OFF]",
+        Duration = 3
+    })
+else
+    -- 실행 중이 아니면 켜기 (ON)
+    getgenv().KickGrabFastRunning = true
 
-    -- 메인 프레임 (검은색 배경, 빨간색 테두리)
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0, 320, 0, 65) -- 텍스트 크기에 맞춰 프레임도 약간 조정
-    frame.Position = UDim2.new(0, 20, 1, -100) -- 왼쪽 하단 배치
-    frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- 검은색 배경
-    frame.BorderSizePixel = 2
-    frame.BorderColor3 = Color3.fromRGB(255, 0, 0) -- 빨간색 테두리
-    frame.Parent = screenGui
+    StarterGui:SetCore("SendNotification", {
+        Title = "Kick Grab (Fast v1.2)",
+        Text = "초고속 반응 모드로 실행되었습니다. [ON]",
+        Duration = 3
+    })
 
-    -- 제목 텍스트 (하얀색, 크기 증가 18 -> 20)
-    local titleLabel = Instance.new("TextLabel")
-    titleLabel.Size = UDim2.new(1, -10, 0, 25)
-    titleLabel.Position = UDim2.new(0, 10, 0, 5)
-    titleLabel.BackgroundTransparency = 1
-    titleLabel.Text = title
-    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255) -- 하얀색 글자
-    titleLabel.TextSize = 20 
-    titleLabel.Font = Enum.Font.GothamBold
-    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    titleLabel.Parent = frame
+    local localPlayer = Players.LocalPlayer
 
-    -- 내용 텍스트 (이름 표시, 크기 증가 14 -> 17)
-    local contentLabel = Instance.new("TextLabel")
-    contentLabel.Size = UDim2.new(1, -10, 0, 25)
-    contentLabel.Position = UDim2.new(0, 10, 0, 32)
-    contentLabel.BackgroundTransparency = 1
-    contentLabel.Text = content
-    contentLabel.TextColor3 = Color3.fromRGB(230, 230, 230) -- 약간 어두운 하얀색 글자
-    contentLabel.TextSize = 17
-    contentLabel.Font = Enum.Font.Gotham
-    contentLabel.TextXAlignment = Enum.TextXAlignment.Left
-    contentLabel.Parent = frame
-
-    -- 지정된 시간 후 삭제
-    task.delay(duration, function()
-        if screenGui then screenGui:Destroy() end
-    end)
-end
-
------------------------------------------------------------------------------------------ [ 핵심 기능 로직 ]
-
-local function ifKickThenF()
-    -- 이미 접속해 있는 플레이어 캐시 초기화
-    for _, otherPlr in ipairs(Players:GetPlayers()) do
-        if otherPlr.Character then
-            local hrp = otherPlr.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                anchoredCache[otherPlr] = hrp.Anchored == true
-            end
-        end
-    end
-
-    -- 플레이어 입장 시 추적 시작
-    Players.PlayerAdded:Connect(function(newPlr)
-        newPlr.CharacterAdded:Connect(function(char)
-            local hrp = char:WaitForChild("HumanoidRootPart", 5)
-            if hrp then
-                anchoredCache[newPlr] = false
-            end
-        end)
-    end)
-
-    -- 플레이어 퇴장 시 강퇴 여부 확인 및 알림
-    Players.PlayerRemoving:Connect(function(leavingPlr)
-        if anchoredCache[leavingPlr] == true then
-            local DISP = leavingPlr.DisplayName
-            local NAP = leavingPlr.Name
-            
-            -- 커스텀 알림 호출
-            CustomNotify("[ Kick Detected ]", "[" .. DISP .. "] ( @" .. NAP ..  ")", 7)
-        end
-        anchoredCache[leavingPlr] = nil
-    end)
-
-    -- 상태 감지 루프
+    -- 별도 스레드에서 루프 실행
     task.spawn(function()
-        while ifKickThenT do
-            for _, p in ipairs(Players:GetPlayers()) do
-                if p.Character then
-                    local hrp = p.Character:FindFirstChild("HumanoidRootPart")
-                    if hrp then
-                        -- 플레이어가 앵커(Anchored) 상태인지 지속적으로 확인
-                        anchoredCache[p] = hrp.Anchored == true
+        while getgenv().KickGrabFastRunning do
+            -- 0.016초 대기 (요청하신 실행 주기)
+            task.wait(0.016)
+
+            local myCharacter = localPlayer.Character
+            if not myCharacter then continue end
+
+            local myTorso = myCharacter:FindFirstChild("Torso") or myCharacter:FindFirstChild("HumanoidRootPart")
+            if not myTorso then continue end
+
+            local grabParts = workspace:FindFirstChild("GrabParts")
+            if grabParts then
+                for _, grabPart in ipairs(grabParts:GetChildren()) do
+                    if grabPart.Name == "GrabPart" then
+                        local weld = grabPart:FindFirstChildOfClass("WeldConstraint")
+                        if not weld then continue end
+
+                        local part1 = weld.Part1
+                        if not part1 then continue end
+
+                        local ownerPlayer
+                        for _, player in ipairs(Players:GetPlayers()) do
+                            if player ~= localPlayer and player.Character and part1:IsDescendantOf(player.Character) then
+                                ownerPlayer = player
+                                break
+                            end
+                        end
+
+                        if not ownerPlayer then continue end
+                        local tgtTorso = ownerPlayer.Character:FindFirstChild("HumanoidRootPart")
+                        if not tgtTorso then continue end
+
+                        -- [[ 딜레이 없는 즉시 실행 블록 ]] --
+                        -- 명령 간의 wait()를 제거하여 서버에 최대한 동시에 도달하도록 처리
+                        ReplicatedStorage.GrabEvents.SetNetworkOwner:FireServer(tgtTorso, myTorso.CFrame)
+                        ReplicatedStorage.GrabEvents.DestroyGrabLine:FireServer(tgtTorso, myTorso.CFrame)
+                        ReplicatedStorage.GrabEvents.CreateGrabLine:FireServer(tgtTorso, CFrame.new(0,0,0))
+                        
+                        -- 물리 고정 (흔들림 방지)
+                        tgtTorso.AssemblyLinearVelocity = Vector3.zero
+                        tgtTorso.AssemblyAngularVelocity = Vector3.zero
                     end
                 end
             end
-            task.wait(0.5) -- 부하 방지를 위한 딜레이
         end
     end)
 end
-
--- 기능 실행
-ifKickThenF()
-
--- 실행 확인용 알림
-CustomNotify("Script Loaded", "Kick Notification Active (v1.1)", 3)
