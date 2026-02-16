@@ -2106,13 +2106,13 @@ local function createHelpGui()
 • .undellines / .undl : CharacterAndBeamMove 활성화
 • .showplcd / .plcd : 감지기 파트 빨간색 테두리 표시 (벽뒤 숨김)
 • .hideplcd / .unplcd : 감지기 파트 표시 끄기
-• .delplcd / .breakplcd : PLCD 삭제(AutoReset) 켜기 (즉시 사망/루프)
+• .delplcd / .breakplcd : PLCD 삭제(AutoReset) 켜기
 • .undeleteplcd / .unbreakplcd : PLCD 삭제 끄기
 • .lg : 룹그랩 시작 (룹그랩 시작)
 • .unlg : 룹그랩 종료 (룹그랩 종료)
 • .antibomb / .ab : 안티 폭탄 켜기 (오븐 설치 및 자동 공격)
 • .unantibomb / .unab : 안티 폭탄 끄기 (오븐 삭제)
-• .antiinplots / .aip : 플롯 내부 플레이어 납치 (SpawnedInToys로 이동)
+• .antiinplots / .aip : 집 내부 플레이어 잡기
 • .unantiinplots / .unaip : 납치 기능 끄기
 • .breakbarrier : 배리어 부수기 켜기 (L키 작동)
 • .unbreakbarrier : 배리어 부수기 끄기
@@ -2120,7 +2120,7 @@ local function createHelpGui()
 • .untakefood / .untf : 음식 뺏어가기 끄기 (즉시 정지)
 • .antibarrier / .barrier : 플롯 장벽 통과 (기본값 ON)
 • .unantibarrier / .unbarrier : 플롯 장벽 복구
-• .oceanwalk : 바다 위 걷기 (Collision On, 기본값 ON)
+• .oceanwalk : 바다 위 걷기
 • .unoceanwalk / .unow : 바다 위 걷기 끄기
 ]]
 
