@@ -19,8 +19,8 @@ end
 
 -- [ 2. 실행 로직: 꺼져 있으면 기능 켜기 ] --
 StarterGui:SetCore("SendNotification", {
-    Title = "Ftap Script",
-    Text = "Plot5 Barrier Delete: [ ON ] (Key: L)",
+    Title = "breakbarrier script",
+    Text = "Barrier break: [ ON ] (Key: L)",
     Duration = 3
 })
 
