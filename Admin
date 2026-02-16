@@ -2037,8 +2037,6 @@ local function createHelpGui()
 • .unfpsboost / .unfps : 최적화 해제 (복구)
 • .antilag : 렉 걸리면 자동 종료 (FPS<8, 수신>2000kb)
 • .unantilag : 자동 종료 해제
-• .dellines / .dl : CharacterAndBeamMove 비활성화 (렉 감소)
-• .undellines / .undl : CharacterAndBeamMove 활성화
 • .fullbright / .fb : 맵 아주 밝게
 • .unfb : 맵 밝기 복구
 • .nofog : 안개 제거
@@ -2075,13 +2073,9 @@ local function createHelpGui()
 • .untpwalk : tpwalk 끄기
 • .iconesp / .ie : 1000 Studs 이내 프로필 ESP
 • .uniconesp / .unie : ESP 끄기
-• .showplcd / .plcd : 감지기 파트 빨간색 테두리 표시 (벽뒤 숨김)
-• .hideplcd / .unplcd : 감지기 파트 표시 끄기
-• .delplcd / .breakplcd : PLCD 삭제(AutoReset) 켜기 (즉시 사망/루프)
-• .undeleteplcd / .unbreakplcd : PLCD 삭제 끄기
 • .walkfling / .wf : 걸어서 날리기(Noclip 켜짐)
 • .unwalkfling / .unwf : 걸어서 날리기 끄기
-• .fly [속도] : 일반 날기 (Velocity 방식, Space상승/Ctrl하강)
+• .fly [속도] : 일반 날기 (Velocity 방식)
 • .unfly : 일반 날기 해제
 • .vfly [속도] : 차량과 함께 날기 (Velocity 방식)
 • .unvfly : 차량 날기 해제
@@ -2097,6 +2091,23 @@ local function createHelpGui()
 • .delspawn : 스폰 지정 삭제
 
 ---- [ 아이템 & 기타 ] ----
+• .age [이름] : 계정 생성일 및 나이 확인
+• .chatlog / .cl : 채팅 로그 웹훅 전송 ON
+• .unchatlog / .uncl : 채팅 로그 전송 OFF
+• .jg / .joinlog : 입/퇴장 로그 켜기
+• .unjg / .unjoinlog : 입/퇴장 로그 끄기
+• .dex : Dex Explorer 실행
+• .rspy : SimpleSpy V3 실행
+• .exit : 게임 종료
+• .종료 / .end : 스크립트 종료
+
+---- [ FTAP 관련 ]
+• .dellines / .dl : CharacterAndBeamMove 비활성화 (렉 감소)
+• .undellines / .undl : CharacterAndBeamMove 활성화
+• .showplcd / .plcd : 감지기 파트 빨간색 테두리 표시 (벽뒤 숨김)
+• .hideplcd / .unplcd : 감지기 파트 표시 끄기
+• .delplcd / .breakplcd : PLCD 삭제(AutoReset) 켜기 (즉시 사망/루프)
+• .undeleteplcd / .unbreakplcd : PLCD 삭제 끄기
 • .lg : 룹그랩 시작 (룹그랩 시작)
 • .unlg : 룹그랩 종료 (룹그랩 종료)
 • .antibomb / .ab : 안티 폭탄 켜기 (오븐 설치 및 자동 공격)
@@ -2111,15 +2122,6 @@ local function createHelpGui()
 • .unantibarrier / .unbarrier : 플롯 장벽 복구
 • .oceanwalk : 바다 위 걷기 (Collision On, 기본값 ON)
 • .unoceanwalk / .unow : 바다 위 걷기 끄기
-• .age [이름] : 계정 생성일 및 나이 확인
-• .chatlog / .cl : 채팅 로그 웹훅 전송 ON
-• .unchatlog / .uncl : 채팅 로그 전송 OFF
-• .jg / .joinlog : 입/퇴장 로그 켜기
-• .unjg / .unjoinlog : 입/퇴장 로그 끄기
-• .dex : Dex Explorer 실행
-• .rspy : SimpleSpy V3 실행
-• .exit : 게임 종료
-• .종료 / .end : 스크립트 종료
 ]]
 
     for line in helpText:gmatch("[^\n]+") do
