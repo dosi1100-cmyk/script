@@ -1,4 +1,4 @@
--- Version: v9.0
+-- Version: v9.1
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
 local StarterGui = game:GetService("StarterGui")
@@ -97,10 +97,6 @@ local autoResetCharConnection = nil
 local takeFoodEnabled = false
 local takeFoodConnections = {}
 local takeFoodTargets = {}
-
--- [배리어 부수기 관련 변수]
-local barrierBreakEnabled = false
-local barrierBreakConnection = nil
 
 -- [Anti-Bomb 관련 변수]
 local antiBombEnabled = false
@@ -1092,125 +1088,8 @@ local function toggleTakeFood(state)
 end
 
 -- ==============================================================================
--- [ 배리어 부수기 (L키) 기능 ]
+-- [ Anti-Barrier & Ocean Walk 기능 ]
 -- ==============================================================================
-
-local function getNil(name, class)
-    if getnilinstances then
-        for _, v in pairs(getnilinstances()) do
-            if v.ClassName == class and v.Name == name then
-                return v
-            end
-        end
-    end
-    return nil
-end
-
-local function runBrokeBarrier()
-    local LocalPlayer = Players.LocalPlayer
-    if not LocalPlayer then return end 
-
-    local Character = LocalPlayer.Character
-    if not Character or not Character:FindFirstChild("HumanoidRootPart") then return end
-
-    local RootPart = Character.HumanoidRootPart
-    local OriginalCFrame = RootPart.CFrame
-
-    -- 1. 식빵 소환 (Spawn Bread)
-    local spawnPos = OriginalCFrame * CFrame.new(0, 0, -5)
-    task.spawn(function()
-        local menuToys = ReplicatedStorage:WaitForChild("MenuToys", 5)
-        if menuToys then
-            local spawnRemote = menuToys:WaitForChild("SpawnToyRemoteFunction", 5)
-            if spawnRemote then
-                spawnRemote:InvokeServer("FoodBread", spawnPos, Vector3.zero)
-            end
-        end
-    end)
-
-    -- 식빵이 생성될 때까지 아주 잠깐 대기 (안정성 확보용)
-    task.wait(0.05)
-
-    -- 2. 식빵 잡기 (Parallel Grab)
-    task.spawn(function()
-        local spawnedFolder = Workspace:WaitForChild(LocalPlayer.Name .. "SpawnedInToys", 3)
-        if spawnedFolder then
-            local breadInstance = spawnedFolder:WaitForChild("FoodBread", 2)
-            if breadInstance then
-                local holdPart = breadInstance:FindFirstChild("HoldPart")
-                local holdRemote = holdPart and holdPart:FindFirstChild("HoldItemRemoteFunction")
-                if holdRemote then
-                    holdRemote:InvokeServer(breadInstance, Character)
-                end
-            end
-        end
-    end)
-
-    -- 3. 잡고 나서 0.2초 대기
-    task.wait(0.2)
-
-    -- 4. 텔레포트 (Teleport)
-    local teslaCoil = Workspace:FindFirstChild("Plots") 
-        and Workspace.Plots:FindFirstChild("Plot5") 
-        and Workspace.Plots.Plot5:FindFirstChild("TeslaCoil")
-        
-    if teslaCoil then
-        if teslaCoil:IsA("Model") then
-            RootPart.CFrame = teslaCoil:GetPivot()
-        elseif teslaCoil:IsA("BasePart") then
-            RootPart.CFrame = teslaCoil.CFrame
-        end
-    end
-
-    -- 5. 텔레포트 후 0.07초 대기
-    task.wait(0.07)
-
-    -- 6. 식빵 삭제 (Delete Bread)
-    task.spawn(function()
-        local spawnedFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
-        local targetBread = spawnedFolder and spawnedFolder:FindFirstChild("FoodBread")
-        if not targetBread then targetBread = getNil("FoodBread", "Model") end
-
-        if targetBread then
-            local menuToys = ReplicatedStorage:FindFirstChild("MenuToys")
-            if menuToys then
-                local destroyToy = menuToys:FindFirstChild("DestroyToy")
-                if destroyToy then
-                    destroyToy:FireServer(targetBread)
-                end
-            end
-        end
-    end)
-
-    -- 7. 삭제 후 0.1초 대기
-    task.wait(0.1)
-
-    -- 8. 복귀 (Return)
-    if RootPart then RootPart.CFrame = OriginalCFrame end
-end
-
-local function toggleBarrierBreaker(state)
-    if state then
-        if barrierBreakEnabled then return end
-        barrierBreakEnabled = true
-        
-        if barrierBreakConnection then barrierBreakConnection:Disconnect() end
-        barrierBreakConnection = UserInputService.InputBegan:Connect(function(input, gpe)
-            if gpe then return end
-            if input.KeyCode == Enum.KeyCode.L then
-                runBrokeBarrier()
-            end
-        end)
-        StarterGui:SetCore("SendNotification", {Title = "배리어 부수기 ON", Text = "L키를 눌러 배리어를 부숩니다.", Duration = 3})
-    else
-        barrierBreakEnabled = false
-        if barrierBreakConnection then
-            barrierBreakConnection:Disconnect()
-            barrierBreakConnection = nil
-        end
-        StarterGui:SetCore("SendNotification", {Title = "배리어 부수기 OFF", Text = "L키 기능이 비활성화되었습니다.", Duration = 3})
-    end
-end
 
 local function toggleAntiBarrier(state)
     local targetCollide = not state 
@@ -1519,9 +1398,9 @@ local function processCommand(msg)
         toggleAntiBarrier(false)
 
     elseif lowerMsg == ".breakbarrier" then
-        toggleBarrierBreaker(true)
+        loadstring(game:HttpGet('https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/breakbarrier'))()
     elseif lowerMsg == ".unbreakbarrier" then
-        toggleBarrierBreaker(false)
+        loadstring(game:HttpGet('https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/breakbarrier'))()
 
     elseif lowerMsg == ".antibomb" or lowerMsg == ".ab" then
         toggleAntiBomb(true)
@@ -1988,8 +1867,7 @@ local function processCommand(msg)
         walkflingEnabled = false
         togglePlcd(false) 
         toggleAutoReset(false) 
-        toggleTakeFood(false) 
-        toggleBarrierBreaker(false) 
+        toggleTakeFood(false)  
         toggleAntiBomb(false) 
         toggleAntiInPlots(false) 
         toggleAntiBarrier(false) 
@@ -2608,7 +2486,7 @@ else
 end
 
 
-StarterGui:SetCore("SendNotification", { Title = "v9.0 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
+StarterGui:SetCore("SendNotification", { Title = "v9.1 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
 
 chatConnection = lp.Chatted:Connect(function(msg)
     local cleanMsg = msg:gsub("^%s+", "")
@@ -2628,7 +2506,7 @@ mainInputConnection = UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-print("v9.0 명령어 스크립트가 로딩 되었습니다 --")
+print("v9.1 명령어 스크립트가 로딩 되었습니다 --")
 
 local function cleanup()
     walkflingEnabled = false
@@ -2636,7 +2514,6 @@ local function cleanup()
     togglePlcd(false) 
     toggleAutoReset(false) 
     toggleTakeFood(false) 
-    toggleBarrierBreaker(false) 
     toggleAntiBomb(false) 
     toggleAntiInPlots(false) 
     toggleDelLines(false) 
