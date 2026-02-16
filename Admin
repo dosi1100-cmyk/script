@@ -2101,7 +2101,7 @@ local function createHelpGui()
 • .exit : 게임 종료
 • .종료 / .end : 스크립트 종료
 
----- [ FTAP 관련 ]
+---- [ FTAP 관련 ] ----
 • .dellines / .dl : CharacterAndBeamMove 비활성화 (렉 감소)
 • .undellines / .undl : CharacterAndBeamMove 활성화
 • .showplcd / .plcd : 감지기 파트 빨간색 테두리 표시 (벽뒤 숨김)
