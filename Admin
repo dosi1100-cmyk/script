@@ -1,4 +1,4 @@
--- Version: v9.2
+-- Version: v9.3
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
 local StarterGui = game:GetService("StarterGui")
@@ -122,18 +122,11 @@ local friendCache = {}
 -- [명령 입력 포커스 상태]
 local cmdFocused = false
 
--- [로그(Webhook) 관련 변수 설정]
-local chatLogActive = false
-local joinLogActive = false
-local chatLogConnections = {}
-local chatWebhookUrl = "https://discord.com/api/webhooks/1462782736145055957/B36epslVSmkXtbqAt6m1NWK_i7RUPifZu-ldc22gRWS0pR02xTCtr-FWnC149KnntdQA"
-local joinWebhookUrl = "https://discord.com/api/webhooks/1463232242116726866/zGyM5oQ4nMkOIkOavl_Rs_phrK2TE40TR375L96YVclHzhsBFCLE01d0azVHynE2sDl7"
-
 -- [관전 관련 변수 추가]
 local viewingPlayer = nil
 local viewConnection = nil
 
--- Executor별 HTTP Request 호환성 처리
+-- Executor별 HTTP Request 호환성 처리 (Server Hop 등에서 사용됨)
 local http_request = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
 
 -- [친구 알림용 GUI 컨테이너]
@@ -506,7 +499,7 @@ local function toggleFpsBoost(enable)
     end
 end
 
--- [채팅 및 로그 함수들]
+-- [채팅 함수]
 local function sendChatMessage(msg)
     if not msg or #msg == 0 then return end
     local legacyChat = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
@@ -517,68 +510,6 @@ local function sendChatMessage(msg)
         if channel then channel:SendAsync(msg) end
     else
         pcall(function() Players:Chat(msg) end)
-    end
-end
-
-local function sendDiscordMessage(player, message)
-    if not http_request then return end
-    local payload = {
-        content = "",
-        embeds = {{
-            title = "💬 채팅 로그 감지",
-            description = "**플레이어:** " .. player.DisplayName .. " (@" .. player.Name .. ")\n**메시지:** " .. message,
-            color = 3447003,
-            footer = { text = "Place ID: " .. tostring(game.PlaceId) .. " | Job ID: " .. tostring(game.JobId) },
-            timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-        }}
-    }
-    pcall(function() http_request({ Url = chatWebhookUrl, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = HttpService:JSONEncode(payload) }) end)
-end
-
-local function sendJoinLeaveMessage(player, type)
-    if not http_request then return end
-    local titleText, colorCode, descText = "", 0, ""
-    if type == "Join" then
-        titleText = "🟢 서버 접속 감지"
-        colorCode = 65280 
-        descText = "**" .. player.DisplayName .. " (@" .. player.Name .. ")** 님이 서버에 접속했습니다."
-    else
-        titleText = "🔴 서버 퇴장 감지"
-        colorCode = 16711680 
-        descText = "**" .. player.DisplayName .. " (@" .. player.Name .. ")** 님이 서버에서 나갔습니다."
-    end
-    local payload = {
-        content = "",
-        embeds = {{
-            title = titleText,
-            description = descText,
-            color = colorCode,
-            footer = { text = "현재 인원: " .. tostring(#Players:GetPlayers()) .. "명 | Place ID: " .. tostring(game.PlaceId) },
-            timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-        }}
-    }
-    pcall(function() http_request({ Url = joinWebhookUrl, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = HttpService:JSONEncode(payload) }) end)
-end
-
-local function toggleChatLog(enable)
-    if enable then
-        if chatLogActive then return end
-        chatLogActive = true
-        local function hookPlayer(p)
-            if chatLogConnections[p] then return end
-            chatLogConnections[p] = p.Chatted:Connect(function(msg) if chatLogActive then sendDiscordMessage(p, msg) end end)
-        end
-        for _, p in ipairs(Players:GetPlayers()) do hookPlayer(p) end
-        chatLogConnections["_PlayerAdded"] = Players.PlayerAdded:Connect(function(p) hookPlayer(p) end)
-        chatLogConnections["_PlayerRemoving"] = Players.PlayerRemoving:Connect(function(p)
-            if chatLogConnections[p] then chatLogConnections[p]:Disconnect() chatLogConnections[p] = nil end
-        end)
-        StarterGui:SetCore("SendNotification", {Title = "채팅 로그 ON", Text = "모든 채팅을 디스코드 웹훅으로 전송합니다.", Duration = 3})
-    else
-        chatLogActive = false
-        for key, conn in pairs(chatLogConnections) do if conn then conn:Disconnect() end end
-        chatLogConnections = {}
-        StarterGui:SetCore("SendNotification", {Title = "채팅 로그 OFF", Text = "전송을 중단했습니다.", Duration = 3})
     end
 end
 
@@ -1859,9 +1790,6 @@ local function processCommand(msg)
             StarterGui:SetCore("SendNotification", {Title = "관전 종료", Text = "본인 시점으로 돌아왔습니다.", Duration = 3})
         end
 
-    elseif lowerMsg == ".joinlog" or lowerMsg == ".jg" then joinLogActive = true; StarterGui:SetCore("SendNotification", {Title = "입퇴장 로그 ON", Text = "서버 입/퇴장 알림을 켰습니다.", Duration = 3})
-    elseif lowerMsg == ".unjoinlog" or lowerMsg == ".unjg" then joinLogActive = false; StarterGui:SetCore("SendNotification", {Title = "입퇴장 로그 OFF", Text = "서버 입/퇴장 알림을 껐습니다.", Duration = 3})
-
     elseif lowerMsg == ".spawn" then
         if lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then
             customSpawnCFrame = lp.Character.HumanoidRootPart.CFrame
@@ -1898,8 +1826,6 @@ local function processCommand(msg)
     elseif lowerMsg == ".unlg" then
         pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/Loopgrab"))() end)
     
-    elseif lowerMsg == ".chatlog" or lowerMsg == ".cl" then toggleChatLog(true)
-    elseif lowerMsg == ".unchatlog" or lowerMsg == ".uncl" then toggleChatLog(false)
     elseif lowerMsg == ".exit" or lowerMsg == ".run" then game:Shutdown()
 
     elseif lowerMsg == ".종료" or lowerMsg == ".end" then
@@ -1925,8 +1851,6 @@ local function processCommand(msg)
         toggleOceanWalk(false) 
         stopTpwalk()
         toggleIconEsp(false)
-        toggleChatLog(false)
-        joinLogActive = false
         
         if spawnConnection then spawnConnection:Disconnect() spawnConnection = nil end
         if fullbrightLoop then fullbrightLoop:Disconnect() fullbrightLoop = nil end
@@ -1970,9 +1894,6 @@ local function processCommand(msg)
                 pcall(function() gui:Destroy() end)
             end
         end
-        
-        for k, v in pairs(chatLogConnections) do if v then pcall(function() v:Disconnect() end) end chatLogConnections[k] = nil end
-        chatLogActive = false
         
         print("스크립트가 완전히 정상적으로 종료되었습니다.")
         return
@@ -2092,10 +2013,6 @@ local function createHelpGui()
 
 ---- [ 아이템 & 기타 ] ----
 • .age [이름] : 계정 생성일 및 나이 확인
-• .chatlog / .cl : 채팅 로그 웹훅 전송 ON
-• .unchatlog / .uncl : 채팅 로그 전송 OFF
-• .jg / .joinlog : 입/퇴장 로그 켜기
-• .unjg / .unjoinlog : 입/퇴장 로그 끄기
 • .dex : Dex Explorer 실행
 • .rspy : SimpleSpy V3 실행
 • .exit : 게임 종료
@@ -2476,7 +2393,6 @@ Players.PlayerAdded:Connect(function(player)
         showFriendAlert(player.DisplayName .. "님이 서버에 접속했습니다!", "join")
         updateFriendList()
     end
-    if joinLogActive then sendJoinLeaveMessage(player, "Join") end
 end)
 
 -- [이벤트 감지: 친구가 나갔을 때 (캐시 기반 확인)]
@@ -2487,7 +2403,6 @@ Players.PlayerRemoving:Connect(function(player)
         friendCache[player.UserId] = nil -- 캐시에서 제거
         updateFriendList()
     end
-    if joinLogActive then sendJoinLeaveMessage(player, "Leave") end
 end)
 
 
@@ -2543,7 +2458,7 @@ else
 end
 
 
-StarterGui:SetCore("SendNotification", { Title = "v9.2 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
+StarterGui:SetCore("SendNotification", { Title = "v9.3 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
 
 chatConnection = lp.Chatted:Connect(function(msg)
     local cleanMsg = msg:gsub("^%s+", "")
@@ -2563,7 +2478,7 @@ mainInputConnection = UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-print("v9.2 명령어 스크립트가 로딩 되었습니다 --")
+print("v9.3 명령어 스크립트가 로딩 되었습니다 --")
 
 local function cleanup()
     walkflingEnabled = false
