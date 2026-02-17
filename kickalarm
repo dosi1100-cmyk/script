@@ -45,7 +45,7 @@ local UIListLayout = Instance.new("UIListLayout")
 UIListLayout.Parent = Container
 UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 UIListLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom -- 바닥부터 채움
-UIListLayout.Padding = UDim.new(0, 10) -- 알림 사이 간격 10
+UIListLayout.Padding = UDim.new(0, 8) -- 알림 사이 간격 10
 
 ----------------------------------------------------------------------------------------- [ 커스텀 알림 UI ]
 
