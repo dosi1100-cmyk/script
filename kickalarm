@@ -1,5 +1,5 @@
--- Version: v1.1
--- Kick Notification Script (UI Removed & Text Resized)
+-- Version: v1.2
+-- Kick Notification Script (UI Removed & Text Resized & Stack Fix)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -10,60 +10,84 @@ local plr = Players.LocalPlayer
 local ifKickThenT = true -- 기능 자동 활성화
 local anchoredCache = {}
 
------------------------------------------------------------------------------------------ [ 커스텀 알림 UI ]
-local function CustomNotify(title, content, duration)
-    -- GUI 생성
-    local guiName = "KickNotifyGUI_" .. math.random(1000,9999)
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = guiName
-    screenGui.ResetOnSpawn = false
-    
-    -- 보안을 위해 CoreGui에 넣거나, 불가능하면 PlayerGui에 넣음
-    if syn and syn.protect_gui then
-        syn.protect_gui(screenGui)
-        screenGui.Parent = CoreGui
-    elseif gethui then
-        screenGui.Parent = gethui()
-    else
-        screenGui.Parent = CoreGui
-    end
+----------------------------------------------------------------------------------------- [ UI 설정 (스택형) ]
 
+local guiName = "KickNotifySystem_Stack"
+local existingGui = CoreGui:FindFirstChild(guiName)
+if existingGui then
+    existingGui:Destroy()
+end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = guiName
+ScreenGui.ResetOnSpawn = false
+
+-- 보안: CoreGui 또는 PlayerGui에 삽입
+if syn and syn.protect_gui then
+    syn.protect_gui(ScreenGui)
+    ScreenGui.Parent = CoreGui
+elseif gethui then
+    ScreenGui.Parent = gethui()
+else
+    ScreenGui.Parent = CoreGui
+end
+
+-- 알림이 쌓일 투명 컨테이너 (왼쪽 전체 영역 사용, 아래 정렬)
+local Container = Instance.new("Frame")
+Container.Name = "NotifyContainer"
+Container.Size = UDim2.new(0, 320, 1, -20) -- 너비 320, 높이는 화면 전체에서 하단 여백 20 뺌
+Container.Position = UDim2.new(0, 20, 0, 0) -- 왼쪽 20 띄움
+Container.BackgroundTransparency = 1
+Container.Parent = ScreenGui
+
+-- 자동 정렬 레이아웃 (아래에서 위로 쌓임)
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = Container
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom -- 바닥부터 채움
+UIListLayout.Padding = UDim.new(0, 10) -- 알림 사이 간격 10
+
+----------------------------------------------------------------------------------------- [ 커스텀 알림 UI ]
+
+local function CustomNotify(title, content, duration)
     -- 메인 프레임 (검은색 배경, 빨간색 테두리)
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0, 320, 0, 65) -- 텍스트 크기에 맞춰 프레임도 약간 조정
-    frame.Position = UDim2.new(0, 20, 1, -100) -- 왼쪽 하단 배치
+    frame.Name = "NotifyFrame"
+    frame.Size = UDim2.new(1, 0, 0, 65) -- 너비는 컨테이너에 맞춤
     frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- 검은색 배경
     frame.BorderSizePixel = 2
     frame.BorderColor3 = Color3.fromRGB(255, 0, 0) -- 빨간색 테두리
-    frame.Parent = screenGui
+    frame.Parent = Container -- 컨테이너에 넣어서 자동 정렬되게 함
 
-    -- 제목 텍스트 (하얀색, 크기 증가 18 -> 20)
+    -- 제목 텍스트
     local titleLabel = Instance.new("TextLabel")
     titleLabel.Size = UDim2.new(1, -10, 0, 25)
     titleLabel.Position = UDim2.new(0, 10, 0, 5)
     titleLabel.BackgroundTransparency = 1
     titleLabel.Text = title
-    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255) -- 하얀색 글자
-    titleLabel.TextSize = 20 
+    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    titleLabel.TextSize = 20
     titleLabel.Font = Enum.Font.GothamBold
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.Parent = frame
 
-    -- 내용 텍스트 (이름 표시, 크기 증가 14 -> 17)
+    -- 내용 텍스트
     local contentLabel = Instance.new("TextLabel")
     contentLabel.Size = UDim2.new(1, -10, 0, 25)
     contentLabel.Position = UDim2.new(0, 10, 0, 32)
     contentLabel.BackgroundTransparency = 1
     contentLabel.Text = content
-    contentLabel.TextColor3 = Color3.fromRGB(230, 230, 230) -- 약간 어두운 하얀색 글자
+    contentLabel.TextColor3 = Color3.fromRGB(230, 230, 230)
     contentLabel.TextSize = 17
     contentLabel.Font = Enum.Font.Gotham
     contentLabel.TextXAlignment = Enum.TextXAlignment.Left
     contentLabel.Parent = frame
 
-    -- 지정된 시간 후 삭제
+    -- 등장 애니메이션 (선택 사항: 투명도 조절 등 가능하나 심플하게 유지)
+    
+    -- 지정된 시간 후 삭제 (프레임만 삭제하면 리스트 레이아웃이 자동으로 정렬함)
     task.delay(duration, function()
-        if screenGui then screenGui:Destroy() end
+        if frame then frame:Destroy() end
     end)
 end
 
@@ -123,4 +147,4 @@ end
 ifKickThenF()
 
 -- 실행 확인용 알림
-CustomNotify("Script Loaded", "Kick Notification Active", 3)
+CustomNotify("Script Loaded", "Kick Notification Active v1.2", 3)
