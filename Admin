@@ -2110,6 +2110,8 @@ local function createHelpGui()
 • .undeleteplcd / .unbreakplcd : PLCD 삭제 끄기
 • .lg : 룹그랩 시작 (룹그랩 시작)
 • .unlg : 룹그랩 종료 (룹그랩 종료)
+• .kg : 킥그랩 시작 (킥그랩 시작)
+• .unkg : 킥그랩 종료 (킥그랩 종료)
 • .antibomb / .ab : 안티 폭탄 켜기 (오븐 설치 및 자동 공격)
 • .unantibomb / .unab : 안티 폭탄 끄기 (오븐 삭제)
 • .antiinplots / .aip : 집 내부 플레이어 잡기
