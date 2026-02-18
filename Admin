@@ -1416,7 +1416,12 @@ local function processCommand(msg)
         loadstring(game:HttpGet('https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/AntiVehicleToys'))()
 
     elseif lowerMsg == ".unavt" or lowerMsg == ".unantivt" then
-        loadstring(game:HttpGet('https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/AntiVehicleToys'))()
+        getgenv().AntiVehicleToyEnabled = false
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "Anti-Vehicle Toy";
+            Text = "Disabled (꺼짐)";
+            Duration = 3;
+        })
 
     elseif lowerMsg == ".kg" then
         loadstring(game:HttpGet('https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/KickGrab'))()
