@@ -2226,6 +2226,8 @@ local function createHelpGui()
 • .unoceanwalk / .unow : 바다 위 걷기 끄기
 • .pendik [숫자] : 나에게 작동
 • .pendik [이름] [숫자] : 해당 유저에게 작동
+• .avt / .antivt : 블롭맨, 트랙터 전부 삭제
+• .unavt / .unantivt : 블롭맨, 트랙터 삭제 중지
 ]]
 
     for line in helpText:gmatch("[^\n]+") do
