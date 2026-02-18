@@ -1,24 +1,14 @@
--- v1.2
+-- v1.3
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StarterGui = game:GetService("StarterGui")
 
--- getgenv()를 사용하여 실행 상태 관리 (토글 기능)
-if getgenv().KickGrabFastRunning then
-    -- 이미 실행 중이면 끄기 (OFF)
-    getgenv().KickGrabFastRunning = false
-    
-    StarterGui:SetCore("SendNotification", {
-        Title = "Kick Grab (Fast v1.2)",
-        Text = "스크립트가 종료되었습니다. [OFF]",
-        Duration = 3
-    })
-else
-    -- 실행 중이 아니면 켜기 (ON)
+-- 이미 실행 중인지 확인
+if not getgenv().KickGrabFastRunning then
     getgenv().KickGrabFastRunning = true
 
     StarterGui:SetCore("SendNotification", {
-        Title = "Kick Grab (Fast v1.2)",
+        Title = "Kick Grab (Fast v1.3)",
         Text = "초고속 반응 모드로 실행되었습니다. [ON]",
         Duration = 3
     })
@@ -60,7 +50,6 @@ else
                         if not tgtTorso then continue end
 
                         -- [[ 딜레이 없는 즉시 실행 블록 ]] --
-                        -- 명령 간의 wait()를 제거하여 서버에 최대한 동시에 도달하도록 처리
                         ReplicatedStorage.GrabEvents.SetNetworkOwner:FireServer(tgtTorso, myTorso.CFrame)
                         ReplicatedStorage.GrabEvents.DestroyGrabLine:FireServer(tgtTorso, myTorso.CFrame)
                         ReplicatedStorage.GrabEvents.CreateGrabLine:FireServer(tgtTorso, CFrame.new(0,0,0))
@@ -73,4 +62,11 @@ else
             end
         end
     end)
+else
+    -- 이미 켜져 있을 경우 알림
+    StarterGui:SetCore("SendNotification", {
+        Title = "Kick Grab (Fast v1.3)",
+        Text = "이미 실행 중입니다.",
+        Duration = 3
+    })
 end
