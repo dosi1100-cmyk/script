@@ -1,8 +1,27 @@
--- v5.4
+-- v5.6
 local StarterGui = game:GetService("StarterGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+
+local LocalPlayer = Players.LocalPlayer
 
 -- ==========================================
--- [0. 실행기 호환성 테스트 (Compatibility Check)]
+-- [중복 실행 방지 (Already Running Check)]
+-- ==========================================
+if getgenv().LoopGrabRunning then
+    warn("[System] Loop Grab is already running!")
+    StarterGui:SetCore("SendNotification", {
+        Title = "System",
+        Text = "이미 룹그랩이 켜져 있습니다!",
+        Duration = 3
+    })
+    return -- 이미 켜져있으면 여기서 스크립트 종료
+end
+
+-- ==========================================
+-- [0. 실행기 호환성 테스트]
 -- ==========================================
 local requiredFunctions = {
     "getgenv",
@@ -11,50 +30,31 @@ local requiredFunctions = {
     "getnamecallmethod"
 }
 
-local missingFunctions = {}
-
 for _, funcName in ipairs(requiredFunctions) do
     if not getfenv()[funcName] then
-        table.insert(missingFunctions, funcName)
-    end
-end
-
-if #missingFunctions > 0 then
-    -- [실패] 지원하지 않음 알림 및 종료
-    warn("[System] 호환성 테스트 실패! 없는 함수: " .. table.concat(missingFunctions, ", "))
-    
-    pcall(function()
+        warn("[System] 호환성 테스트 실패! 없는 함수: " .. funcName)
         StarterGui:SetCore("SendNotification", {
             Title = "System Error",
             Text = "이 실행기는 스크립트를 지원하지 않습니다.",
             Duration = 5,
         })
-    end)
-    
-    return -- 스크립트 강제 종료
-else
-    -- [성공] 콘솔 출력 후 계속 진행
-    print("[System] 호환성 테스트 통과: 실행기가 모든 기능을 지원합니다.")
+        return
+    end
 end
 
+-- [상태 활성화]
+getgenv().LoopGrabRunning = true
+getgenv().IsRespawning = false
+
 -- ==========================================
--- [스크립트 본문 시작]
+-- [설정 및 변수]
 -- ==========================================
-
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
-local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
-
-local LocalPlayer = Players.LocalPlayer
-
--- [설정: 사용자 정의 상수]
 local PALLET_NAME = "PalletLightBrown"
-local SPAM_INTERVAL = 0.02      -- 룹그랩 스팸 간격
-local DROP_HEIGHT = 50000       -- 높이: 5만
-local DROP_SPEED = -100000      -- 속도: 10만
-local IMPACT_POWER = 10         -- 파워: 10
-local SEGMENTS = 8              -- 분할: 8번
+local SPAM_INTERVAL = 0.02
+local DROP_HEIGHT = 50000
+local DROP_SPEED = -100000
+local IMPACT_POWER = 10
+local SEGMENTS = 8
 
 -- [리모트 찾기]
 local menuToys = ReplicatedStorage:WaitForChild("MenuToys", 5)
@@ -67,41 +67,9 @@ local destroyGrabLineRemote = grabEvents and grabEvents:WaitForChild("DestroyGra
 
 if not (spawnToyRemote and destroyToyRemote and setNetworkOwnerRemote and destroyGrabLineRemote) then
     warn("[System] 필수 리모트를 찾지 못했습니다.")
-    return
-end
-
--- ==========================================
--- [토글 시스템]
--- ==========================================
-if getgenv().LoopGrabRunning then
-    -- [OFF]
+    -- 리모트 못 찾으면 실행 상태 다시 끔
     getgenv().LoopGrabRunning = false
-    getgenv().CurrentGrabbedTarget = nil
-    getgenv().IsRespawning = false
-    
-    if getgenv().LoopGrabConnection then
-        getgenv().LoopGrabConnection:Disconnect()
-        getgenv().LoopGrabConnection = nil
-    end
-
-    if getgenv().CurrentPalletModel and getgenv().CurrentPalletModel.Parent then
-        pcall(function() 
-            destroyToyRemote:FireServer(getgenv().CurrentPalletModel) 
-        end)
-    end
-    getgenv().CurrentPalletModel = nil
-    getgenv().CurrentPalletPart = nil
-
-    StarterGui:SetCore("SendNotification", {
-        Title = "System",
-        Text = "Loop Grab: OFF",
-        Duration = 3
-    })
     return
-else
-    -- [ON]
-    getgenv().LoopGrabRunning = true
-    getgenv().IsRespawning = false
 end
 
 -- [충돌 방지 함수]
@@ -118,14 +86,12 @@ local function SetNoCollisionWithPlayer(palletPart)
     end
 end
 
--- ==========================================
--- [핵심: 고속 소환 (딜레이 무시)]
--- ==========================================
+-- [소환 함수]
 local function SpawnPallet()
     if getgenv().IsRespawning or not getgenv().LoopGrabRunning then return end
     getgenv().IsRespawning = true
 
-    -- 1. 잔여물 정리
+    -- 잔여물 정리
     if getgenv().CurrentPalletModel and getgenv().CurrentPalletModel.Parent then
         pcall(function() destroyToyRemote:FireServer(getgenv().CurrentPalletModel) end)
     end
@@ -140,28 +106,22 @@ local function SpawnPallet()
         return 
     end
 
-    -- 2. 좌표 계산 (머리 위 5스터드 + 시선 정렬)
     local spawnPos = hrp.Position + Vector3.new(0, 5, 0)
     local rx, ry, rz = hrp.CFrame:ToOrientation()
     local finalCFrame = CFrame.new(spawnPos) * CFrame.fromOrientation(math.rad(90), ry, 0)
 
-    -- 3. [수정됨] 서버 응답 대기 제거 -> 0.3초 무조건 대기
-    -- InvokeServer가 코드를 멈추지 않게 별도 스레드로 실행 (Fire-and-Forget)
     task.spawn(function()
         pcall(function()
             spawnToyRemote:InvokeServer(PALLET_NAME, finalCFrame, Vector3.zero)
         end)
     end)
 
-    -- 요청하신 대로 서버 렉 무시하고 딱 0.3초만 대기
     task.wait(0.3)
 
-    -- 4. [즉시 탐색] 대기 루프 없이 바로 획득 시도
     local toyFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
     local foundModel = nil
 
     if toyFolder then
-        -- 폴더 스캔하여 모델 찾기 (대기 없이 즉시 확인)
         local children = toyFolder:GetChildren()
         for i = #children, 1, -1 do
             if children[i].Name == PALLET_NAME and children[i]:IsA("Model") then
@@ -171,10 +131,8 @@ local function SpawnPallet()
         end
     end
 
-    -- 5. [획득]
     if foundModel then
         local foundPart = foundModel:FindFirstChild("SoundPart")
-        
         if foundPart then
             getgenv().CurrentPalletModel = foundModel
             getgenv().CurrentPalletPart = foundPart
@@ -182,7 +140,6 @@ local function SpawnPallet()
             SetNoCollisionWithPlayer(foundPart)
             foundPart.CanCollide = false
             
-            -- [버스트] 0.1초간 소유권 전송
             for i = 1, 5 do
                 if not foundPart.Parent then break end
                 pcall(function()
@@ -198,11 +155,8 @@ local function SpawnPallet()
     getgenv().IsRespawning = false
 end
 
--- 초기 실행
-task.spawn(SpawnPallet)
-
 -- ==========================================
--- [Part 2: 훅 (타겟 유지)]
+-- [훅 시스템]
 -- ==========================================
 if not getgenv().LoopGrabHookInstalled then
     getgenv().LoopGrabHookInstalled = true
@@ -232,7 +186,7 @@ if not getgenv().LoopGrabHookInstalled then
 end
 
 -- ==========================================
--- [Part 3: 무한 루프]
+-- [무한 루프 시작]
 -- ==========================================
 local hammerGoingDown = true
 local segmentIndex = 0
@@ -304,8 +258,11 @@ getgenv().LoopGrabConnection = RunService.Heartbeat:Connect(function()
     end
 end)
 
+-- 초기 실행
+task.spawn(SpawnPallet)
+
 StarterGui:SetCore("SendNotification", {
     Title = "System",
-    Text = "Loop Grab v5.4 : ON",
+    Text = "Loop Grab v5.6 : ON",
     Duration = 3
 })
