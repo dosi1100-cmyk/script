@@ -1371,7 +1371,28 @@ local function processCommand(msg)
     elseif lowerMsg == ".breakbarrier" then
         loadstring(game:HttpGet('https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/breakbarrier'))()
     elseif lowerMsg == ".unbreakbarrier" then
-        loadstring(game:HttpGet('https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/breakbarrier'))()
+        local connectionName = "Ftap_Barrier_Delete_L_Connection"
+        local StarterGui = game:GetService("StarterGui")
+
+        if _G[connectionName] then
+            -- 연결이 존재하면 연결 해제 (이벤트 수신 중단)
+            pcall(function() _G[connectionName]:Disconnect() end)
+            _G[connectionName] = nil
+            _G.PBDrun = nil -- 실행 중 변수 초기화
+
+            StarterGui:SetCore("SendNotification", {
+                Title = "Ftap Script",
+                Text = "Barrier Delete: [ OFF ]",
+                Duration = 3
+            })
+        else
+            -- 이미 꺼져있을 경우
+            StarterGui:SetCore("SendNotification", {
+                Title = "Ftap Script",
+                Text = "Already OFF",
+                Duration = 3
+            })
+        end
 
     elseif lowerMsg == ".antibomb" or lowerMsg == ".ab" then
         toggleAntiBomb(true)
@@ -1426,8 +1447,27 @@ local function processCommand(msg)
     elseif lowerMsg == ".kg" then
         loadstring(game:HttpGet('https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/KickGrab'))()
     elseif lowerMsg == ".unkg" then    
-        loadstring(game:HttpGet('https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/KickGrab'))()
-    
+        -- v1.3
+        local StarterGui = game:GetService("StarterGui")
+
+        -- 실행 중인지 확인 후 종료
+        if getgenv().KickGrabFastRunning then
+            getgenv().KickGrabFastRunning = false
+            
+            StarterGui:SetCore("SendNotification", {
+                Title = "Kick Grab (Fast v1.3)",
+                Text = "스크립트가 종료되었습니다. [OFF]",
+                Duration = 3
+            })
+        else
+            -- 켜져 있지 않을 경우 알림
+            StarterGui:SetCore("SendNotification", {
+                Title = "Kick Grab (Fast v1.3)",
+                Text = "실행 중이 아닙니다.",
+                Duration = 3
+            })
+        end
+
     elseif lowerMsg == ".svhop" then
         StarterGui:SetCore("SendNotification", {Title = "서버 이동", Text = "다른 서버를 찾는 중...", Duration = 3})
         if not http_request then StarterGui:SetCore("SendNotification", {Title = "오류", Text = "HTTP 미지원", Duration = 3}) return end
