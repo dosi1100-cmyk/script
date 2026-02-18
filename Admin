@@ -1,4 +1,4 @@
--- Version: v10
+-- Version: v10.1
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
 local StarterGui = game:GetService("StarterGui")
@@ -704,13 +704,21 @@ end
 -- [Spin 기능]
 local function toggleSpin(state, speed)
     if state then
+        local newSpeed = tonumber(speed)
+        
+        -- 숫자가 입력되었으면 해당 속도 적용, 아니면 기본값이나 기존값 유지
+        if newSpeed then
+            spinSpeed = newSpeed
+        elseif not spinEnabled then
+            spinSpeed = 10 
+        end
+
+        -- 이미 켜져있는 상태라면 속도만 업데이트하고 종료
         if spinEnabled then
-            StarterGui:SetCore("SendNotification", {Title = "Spin", Text = "이미 실행 중입니다.", Duration = 2})
+            StarterGui:SetCore("SendNotification", {Title = "Spin 속도 변경", Text = "회전 속도: " .. spinSpeed, Duration = 2})
             return
         end
         
-        spinSpeed = tonumber(speed) or 10
-        if spinSpeed <= 0 then spinSpeed = 10 end
         spinEnabled = true
         
         if spinConnection then spinConnection:Disconnect() end
@@ -2729,7 +2737,7 @@ else
 end
 
 
-StarterGui:SetCore("SendNotification", { Title = "v10 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
+StarterGui:SetCore("SendNotification", { Title = "v10.1 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
 
 chatConnection = lp.Chatted:Connect(function(msg)
     local cleanMsg = msg:gsub("^%s+", "")
@@ -2749,7 +2757,7 @@ mainInputConnection = UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-print("v10 명령어 스크립트가 로딩 되었습니다 --")
+print("v10.1 명령어 스크립트가 로딩 되었습니다 --")
 
 local function cleanup()
     walkflingEnabled = false
