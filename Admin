@@ -1,4 +1,4 @@
--- Version: v9.9
+-- Version: v10
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
 local StarterGui = game:GetService("StarterGui")
@@ -1875,7 +1875,46 @@ local function processCommand(msg)
     elseif lowerMsg == ".lg" then
         pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/Loopgrab"))() end)
     elseif lowerMsg == ".unlg" then
-        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/Loopgrab"))() end)
+        -- v5.5
+        local StarterGui = game:GetService("StarterGui")
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+        -- [1. 상태 비활성화]
+        getgenv().LoopGrabRunning = false
+        getgenv().CurrentGrabbedTarget = nil
+        getgenv().IsRespawning = false
+
+        -- [2. 루프 연결 해제]
+        if getgenv().LoopGrabConnection then
+            getgenv().LoopGrabConnection:Disconnect()
+            getgenv().LoopGrabConnection = nil
+        end
+
+        -- [3. 리모트 찾기 (정리를 위해 필요)]
+        local menuToys = ReplicatedStorage:WaitForChild("MenuToys", 5)
+        local destroyToyRemote = menuToys and menuToys:FindFirstChild("DestroyToy")
+
+        -- [4. 소환물 제거]
+        if getgenv().CurrentPalletModel and getgenv().CurrentPalletModel.Parent then
+            if destroyToyRemote then
+                pcall(function() 
+                    destroyToyRemote:FireServer(getgenv().CurrentPalletModel) 
+                end)
+            else
+                -- 리모트를 못 찾았을 경우 클라이언트에서라도 제거
+                getgenv().CurrentPalletModel:Destroy()
+            end
+        end
+
+        -- [5. 변수 초기화]
+        getgenv().CurrentPalletModel = nil
+        getgenv().CurrentPalletPart = nil
+
+        StarterGui:SetCore("SendNotification", {
+            Title = "System",
+            Text = "Loop Grab v5.5 : OFF",
+            Duration = 3
+        })
 
     elseif lowerMsg:sub(1, 8) == ".pendik " then
         local args = {}
@@ -2690,7 +2729,7 @@ else
 end
 
 
-StarterGui:SetCore("SendNotification", { Title = "v9.9 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
+StarterGui:SetCore("SendNotification", { Title = "v10 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
 
 chatConnection = lp.Chatted:Connect(function(msg)
     local cleanMsg = msg:gsub("^%s+", "")
@@ -2710,7 +2749,7 @@ mainInputConnection = UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-print("v9.9 명령어 스크립트가 로딩 되었습니다 --")
+print("v10 명령어 스크립트가 로딩 되었습니다 --")
 
 local function cleanup()
     walkflingEnabled = false
