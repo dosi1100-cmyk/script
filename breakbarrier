@@ -1,33 +1,23 @@
 local connectionName = "Ftap_Barrier_Delete_L_Connection"
 local StarterGui = game:GetService("StarterGui")
 local UIS = game:GetService("UserInputService")
-
--- [ 1. 토글 로직: 이미 실행 중이면 끄고 종료 ] --
-if _G[connectionName] then
-    -- 연결이 존재하면 연결 해제 (이벤트 수신 중단)
-    pcall(function() _G[connectionName]:Disconnect() end)
-    _G[connectionName] = nil
-    _G.PBDrun = nil -- 실행 중 변수 초기화
-
-    StarterGui:SetCore("SendNotification", {
-        Title = "Ftap Script",
-        Text = "Plot5 Barrier Delete: [ OFF ]",
-        Duration = 3
-    })
-    return -- 스크립트 여기서 즉시 종료
-end
-
--- [ 2. 실행 로직: 꺼져 있으면 기능 켜기 ] --
-StarterGui:SetCore("SendNotification", {
-    Title = "breakbarrier script",
-    Text = "Barrier break: [ ON ] (Key: L)",
-    Duration = 3
-})
-
 local Players = game:GetService("Players")
 local RS = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local plr = Players.LocalPlayer
+
+-- [ 중복 실행 방지 ] 이미 켜져 있다면 기존 연결을 해제하고 다시 연결
+if _G[connectionName] then
+    pcall(function() _G[connectionName]:Disconnect() end)
+    _G[connectionName] = nil
+end
+
+-- [ 알림 ] 기능 활성화 메시지
+StarterGui:SetCore("SendNotification", {
+    Title = "Ftap Script",
+    Text = "Plot5 Barrier Delete: [ ON ] (Key: L)",
+    Duration = 3
+})
 
 -- 기능 함수 정의
 local function PlotBarrierDelete()
@@ -114,8 +104,7 @@ local function PlotBarrierDelete()
     _G.PBDrun = false
 end
 
--- [ 3. 키바인드 연결 및 저장 ] --
--- 연결 객체를 전역 변수(_G)에 저장하여 다음에 끄거나 켤 때 참조 가능하게 함
+-- [ 키바인드 연결 ] L키 누르면 실행
 _G[connectionName] = UIS.InputBegan:Connect(function(input, processed)
     if not processed and input.KeyCode == Enum.KeyCode.L then
         PlotBarrierDelete()
