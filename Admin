@@ -1,4 +1,4 @@
--- Version: v9.8
+-- Version: v9.9
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
 local StarterGui = game:GetService("StarterGui")
@@ -2690,7 +2690,7 @@ else
 end
 
 
-StarterGui:SetCore("SendNotification", { Title = "v9.8 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
+StarterGui:SetCore("SendNotification", { Title = "v9.9 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
 
 chatConnection = lp.Chatted:Connect(function(msg)
     local cleanMsg = msg:gsub("^%s+", "")
@@ -2710,7 +2710,7 @@ mainInputConnection = UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-print("v9.8 명령어 스크립트가 로딩 되었습니다 --")
+print("v9.9 명령어 스크립트가 로딩 되었습니다 --")
 
 local function cleanup()
     walkflingEnabled = false
