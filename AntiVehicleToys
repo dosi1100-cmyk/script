@@ -1,28 +1,26 @@
--- Anti-Vehicle Toy v1.0
 if getgenv().AntiVehicleToyEnabled then
-    getgenv().AntiVehicleToyEnabled = false
     game:GetService("StarterGui"):SetCore("SendNotification", {
         Title = "Anti-Vehicle Toy";
-        Text = "Disabled (꺼짐)";
+        Text = "이미 켜져 있습니다!";
         Duration = 3;
     })
     return
-else
-    getgenv().AntiVehicleToyEnabled = true
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "Anti-Vehicle Toy";
-        Text = "Enabled (켜짐)";
-        Duration = 3;
-    })
 end
+
+getgenv().AntiVehicleToyEnabled = true
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "Anti-Vehicle Toy";
+    Text = "Enabled (켜짐)";
+    Duration = 3;
+})
 
 local Players = game:GetService("Players")
 local plr = Players.LocalPlayer
 local workspace = game:GetService("Workspace")
 
--- 화이트리스트 설정 (필요시 이름 추가, 예: {"Friend1", "Friend2"})
-local Whitelist = {} 
-local WhiteListMode = false 
+-- 화이트리스트 (필요 시 이름 추가)
+local Whitelist = {}
+local WhiteListMode = false
 
 task.spawn(function()
     local FallenY = workspace.FallenPartsDestroyHeight
@@ -42,7 +40,6 @@ task.spawn(function()
 
         if not char or not root or not hum then continue end
 
-        -- 내 플롯 번호 찾기
         local myPlotNumber = nil
         local plots = workspace:FindFirstChild("Plots")
         if plots then
@@ -58,7 +55,6 @@ task.spawn(function()
             end
         end
 
-        -- 아이템 수집 함수
         local function collectItemsFromFolder(folder)
             local items = {}
             for _, item in ipairs(folder:GetChildren()) do
@@ -82,7 +78,6 @@ task.spawn(function()
             return items
         end
 
-        -- 모든 아이템 검색
         local allItems = {}
         for _, player in ipairs(Players:GetPlayers()) do
             if player == plr then continue end
@@ -117,7 +112,6 @@ task.spawn(function()
             end
         end
 
-        -- 처리 로직
         for _, item in ipairs(allItems) do
             if not getgenv().AntiVehicleToyEnabled then break end
 
@@ -140,7 +134,6 @@ task.spawn(function()
                     continue 
                 end
 
-                -- 앵커 후 탑승 시도
                 root.Anchored = true
                 vs:Sit(hum)
 
@@ -148,7 +141,6 @@ task.spawn(function()
                     task.wait(0.15)
                     hum:ChangeState(Enum.HumanoidStateType.Running)
                     task.wait()
-                    -- 보이드로 이동
                     if item.PrimaryPart then item:SetPrimaryPartCFrame(dropPos) end
                     root.Anchored = false
 
@@ -179,10 +171,8 @@ task.spawn(function()
                         end)
                     end
                 end
-
                 task.wait(0.01)
             end
-
             break
         end
     end
