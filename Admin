@@ -1,4 +1,4 @@
--- Version: v10.1
+-- Version: v10.2
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
 local StarterGui = game:GetService("StarterGui")
@@ -1452,6 +1452,29 @@ local function processCommand(msg)
             Duration = 3;
         })
 
+    elseif lowerMsg == ".hg" then
+        loadstring(game:HttpGet('https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/housegrab'))()
+    elseif lowerMsg == ".unhg" then
+        -- v1.1 House Grab OFF
+        local StarterGui = game:GetService("StarterGui")
+
+        if getgenv().HouseGrabConnection then
+            getgenv().HouseGrabConnection:Disconnect()
+            getgenv().HouseGrabConnection = nil
+            
+            StarterGui:SetCore("SendNotification", {
+                Title = "House Grab",
+                Text = "스크립트가 꺼졌습니다. (OFF)",
+                Duration = 3
+            })
+        else
+            StarterGui:SetCore("SendNotification", {
+                Title = "House Grab",
+                Text = "실행 중인 스크립트가 없습니다.",
+                Duration = 3
+            })
+        end
+
     elseif lowerMsg == ".kg" then
         loadstring(game:HttpGet('https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/KickGrab'))()
     elseif lowerMsg == ".unkg" then    
@@ -2304,6 +2327,8 @@ local function createHelpGui()
 • .unlg : 룹그랩 종료 (룹그랩 종료)
 • .kg : 킥그랩 시작 (킥그랩 시작)
 • .unkg : 킥그랩 종료 (킥그랩 종료)
+• .hg : 하우스 그랩 시작 (집 소유해야함 G키를 이용해서 작동)
+• .unhg : 하우스 그랩 종료
 • .antibomb / .ab : 안티 폭탄 켜기 (오븐 설치 및 자동 공격)
 • .unantibomb / .unab : 안티 폭탄 끄기 (오븐 삭제)
 • .antiinplots / .aip : 집 내부 플레이어 잡기
@@ -2737,7 +2762,7 @@ else
 end
 
 
-StarterGui:SetCore("SendNotification", { Title = "v10.1 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
+StarterGui:SetCore("SendNotification", { Title = "v10.2 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
 
 chatConnection = lp.Chatted:Connect(function(msg)
     local cleanMsg = msg:gsub("^%s+", "")
@@ -2757,7 +2782,7 @@ mainInputConnection = UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-print("v10.1 명령어 스크립트가 로딩 되었습니다 --")
+print("v10.2 명령어 스크립트가 로딩 되었습니다 --")
 
 local function cleanup()
     walkflingEnabled = false
