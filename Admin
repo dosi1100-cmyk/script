@@ -1,4 +1,4 @@
--- Version: v10.5
+-- Version: v10.6
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
 local StarterGui = game:GetService("StarterGui")
@@ -105,10 +105,6 @@ local autoResetCharConnection = nil
 local takeFoodEnabled = false
 local takeFoodConnections = {}
 local takeFoodTargets = {}
-
--- [Anti-Bomb 관련 변수]
-local antiBombEnabled = false
-local currentOven = nil
 
 -- [AntiInPlots 관련 변수]
 local antiInPlotsEnabled = false
@@ -1163,173 +1159,6 @@ local function toggleOceanWalk(state)
     end
 end
 
--- ==============================================================================
--- [ Anti-Bomb (오븐 방어) 기능 ]
--- ==============================================================================
-local function toggleAntiBomb(state)
-    if state then
-        if antiBombEnabled then 
-            StarterGui:SetCore("SendNotification", {Title = "안티 폭탄", Text = "이미 실행 중입니다.", Duration = 2})
-            return 
-        end
-        antiBombEnabled = true
-
-        task.spawn(function()
-            local Character = lp.Character or lp.CharacterAdded:Wait()
-            local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
-            if not HumanoidRootPart then return end
-
-            local OriginalCFrame = HumanoidRootPart.CFrame
-
-            local SetupCoordinate = Vector3.new(541.4873046875, -5.359338283538818, -266.456787109375)
-            HumanoidRootPart.CFrame = CFrame.new(SetupCoordinate)
-            task.wait(0.05) 
-
-            local spawnRemote = ReplicatedStorage:WaitForChild("MenuToys"):WaitForChild("SpawnToyRemoteFunction")
-            local spawnPos = HumanoidRootPart.CFrame * CFrame.new(0, 0, -5)
-            spawnRemote:InvokeServer("OvenDarkGray", spawnPos, Vector3.new(0, 0, 0))
-
-            local myToyFolderName = lp.Name .. "SpawnedInToys" 
-            local myToyFolder = Workspace:WaitForChild(myToyFolderName, 5)
-            if not myToyFolder then 
-                warn("Toy 폴더를 찾을 수 없음")
-                HumanoidRootPart.CFrame = OriginalCFrame
-                antiBombEnabled = false
-                return 
-            end
-            
-            local myOven = myToyFolder:WaitForChild("OvenDarkGray", 5)
-            if not myOven then
-                warn("오븐을 찾을 수 없습니다.")
-                HumanoidRootPart.CFrame = OriginalCFrame
-                antiBombEnabled = false
-                StarterGui:SetCore("SendNotification", {Title = "안티 폭탄 실패", Text = "오븐 스폰에 실패했습니다.", Duration = 3})
-                return
-            end
-            
-            currentOven = myOven
-            local ovenMain = myOven:WaitForChild("Main")
-
-            if HumanoidRootPart and ovenMain then
-                HumanoidRootPart.CFrame = ovenMain.CFrame * CFrame.new(0, 0, 10)
-            end
-            
-            task.wait(0.05)
-
-            local interactRemote = ReplicatedStorage:WaitForChild("GrabEvents"):WaitForChild("SetNetworkOwner")
-            local ButtonSequence = {"Button1", "Button2", "ButtonOven", "Button3", "Button4"}
-
-            local soundPart = myOven:WaitForChild("SoundPart", 2)
-            if soundPart then interactRemote:FireServer(soundPart, soundPart.CFrame) end
-
-            for _, btnName in ipairs(ButtonSequence) do
-                local btn = myOven:WaitForChild(btnName, 2)
-                if btn then
-                    interactRemote:FireServer(btn, btn.CFrame)
-                    task.wait() 
-                end
-            end
-
-            if HumanoidRootPart then
-                HumanoidRootPart.CFrame = OriginalCFrame
-            end
-            
-            StarterGui:SetCore("SendNotification", {Title = "안티 폭탄 켜짐", Text = "오븐을 설치하고 방어 모드를 시작합니다.", Duration = 3})
-
-            local TargetBombNames = {
-                ["BombMissile"] = true, ["BombDarkMatter"] = true,
-                ["BombBalloon"] = true, ["BallSnowball"] = true, ["BalloonModel"] = true
-            }
-            local SafeZoneCFrame = CFrame.new(0, 500000, 0)
-
-            while antiBombEnabled and myOven and myOven.Parent do
-                local foundTarget = nil
-                local targetCFrame = nil
-
-                for _, folder in pairs(Workspace:GetChildren()) do
-                    if string.sub(folder.Name, -13) == "SpawnedInToys" then
-                        if folder.Name == myToyFolderName then continue end 
-                        for _, toy in pairs(folder:GetChildren()) do
-                            if TargetBombNames[toy.Name] then
-                                foundTarget = toy
-                                break
-                            end
-                        end
-                    end
-                    if foundTarget then break end
-                end
-                
-                if not foundTarget then
-                    local balloonsFolder = Workspace:FindFirstChild("Balloons")
-                    if balloonsFolder then
-                        for _, toy in pairs(balloonsFolder:GetChildren()) do
-                            if TargetBombNames[toy.Name] then
-                                foundTarget = toy
-                                break
-                            end
-                        end
-                    end
-                end
-
-                if foundTarget and foundTarget.Parent.Name == myToyFolderName then foundTarget = nil end
-
-                if foundTarget then
-                    if foundTarget.Name == "BombBalloon" or foundTarget.Name == "BalloonModel" then
-                        targetCFrame = foundTarget:GetPivot()
-                    elseif foundTarget:FindFirstChild("Main") then
-                        targetCFrame = foundTarget.Main.CFrame
-                    end
-
-                    if targetCFrame then
-                        for i = 0.3, 5 do
-                            if not foundTarget or not foundTarget.Parent then break end
-                            if not antiBombEnabled then break end
-
-                            if foundTarget.Name == "BombBalloon" or foundTarget.Name == "BalloonModel" then
-                                targetCFrame = foundTarget:GetPivot()
-                            elseif foundTarget:FindFirstChild("Main") then
-                                targetCFrame = foundTarget.Main.CFrame
-                            end
-                            
-                            ovenMain.CFrame = targetCFrame
-                            ovenMain.Velocity = Vector3.zero
-                            ovenMain.RotVelocity = Vector3.zero
-                            RunService.Heartbeat:Wait()
-
-                            ovenMain.CFrame = SafeZoneCFrame
-                            ovenMain.Velocity = Vector3.zero
-                            ovenMain.RotVelocity = Vector3.zero
-                            RunService.Heartbeat:Wait()
-                        end
-                    end
-                else
-                    ovenMain.CFrame = SafeZoneCFrame
-                    ovenMain.Velocity = Vector3.zero
-                    ovenMain.RotVelocity = Vector3.zero
-                    task.wait()
-                end
-            end
-        end)
-    else
-        antiBombEnabled = false
-        
-        if currentOven and currentOven.Parent then
-            local args = { currentOven }
-            pcall(function()
-                game:GetService("ReplicatedStorage"):WaitForChild("MenuToys"):WaitForChild("DestroyToy"):FireServer(unpack(args))
-            end)
-            StarterGui:SetCore("SendNotification", {Title = "안티 폭탄 꺼짐", Text = "설치된 오븐을 삭제했습니다.", Duration = 3})
-            currentOven = nil
-        else
-            local args = { Instance.new("Model", nil) } 
-            pcall(function()
-                game:GetService("ReplicatedStorage"):WaitForChild("MenuToys"):WaitForChild("DestroyToy"):FireServer(unpack(args))
-            end)
-            StarterGui:SetCore("SendNotification", {Title = "안티 폭탄 꺼짐", Text = "오븐 삭제 신호를 보냈습니다.", Duration = 3})
-        end
-    end
-end
-
 
 -- ==============================================================================
 -- [ AntiInPlots (플롯 내부 납치) 기능 ]
@@ -1446,9 +1275,26 @@ local function processCommand(msg)
         end
 
     elseif lowerMsg == ".antibomb" or lowerMsg == ".ab" then
-        toggleAntiBomb(true)
+        pcall(function()
+            loadstring(game:HttpGet('https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/antibomb'))()
+        end)
+        StarterGui:SetCore("SendNotification", {Title = "안티 폭탄", Text = "스크립트가 실행되었습니다.", Duration = 3})
+
     elseif lowerMsg == ".unantibomb" or lowerMsg == ".unab" then
-        toggleAntiBomb(false)
+        if getgenv().AntiBombToggle then
+            getgenv().AntiBombToggle = false
+            
+            -- 켜져있던 오븐 삭제
+            if getgenv().AntiBombOven then
+                pcall(function() 
+                    getgenv().AntiBombOven:Destroy() 
+                end)
+                getgenv().AntiBombOven = nil
+            end
+            StarterGui:SetCore("SendNotification", {Title = "안티 폭탄", Text = "종료되었습니다.", Duration = 3})
+        else
+            StarterGui:SetCore("SendNotification", {Title = "안티 폭탄", Text = "실행 중인 안티 폭탄이 없습니다.", Duration = 3})
+        end
 
     elseif lowerMsg == ".antiinplots" or lowerMsg == ".aip" then
         toggleAntiInPlots(true)
@@ -1873,7 +1719,7 @@ local function processCommand(msg)
                 myHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
                 myHRP.CFrame = targetHRP.CFrame * offsetCFrame
                 myHRP.Anchored = true
-                StarterGui:SetCore("SendNotification", {Title = "이동 완료", Text = targetPlayer.Name .. "님에게 이동", Duration = 2})
+                StarterGui:SetCore("SendNotification", {Title = "이 이동 완료", Text = targetPlayer.Name .. "님에게 이동", Duration = 2})
                 task.delay(0.3, function() if myHRP then myHRP.Anchored = false end end)
             end
         end
@@ -2174,7 +2020,15 @@ local function processCommand(msg)
         togglePlcd(false) 
         toggleAutoReset(false) 
         toggleTakeFood(false)  
-        toggleAntiBomb(false) 
+        
+        if getgenv().AntiBombToggle then
+            getgenv().AntiBombToggle = false
+            if getgenv().AntiBombOven then
+                pcall(function() getgenv().AntiBombOven:Destroy() end)
+                getgenv().AntiBombOven = nil
+            end
+        end
+        
         toggleAntiInPlots(false) 
         toggleAntiBarrier(false) 
         toggleOceanWalk(false) 
@@ -2359,7 +2213,7 @@ local function createHelpGui()
 • .unkg : 킥그랩 종료 (킥그랩 종료)
 • .hg : 하우스 그랩 시작 (집 소유해야함 G키를 이용해서 작동)
 • .unhg : 하우스 그랩 종료
-• .antibomb / .ab : 안티 폭탄 켜기 (오븐 설치 및 자동 공격)
+• .antibomb / .ab : 안티 폭탄 켜기 (웹 스크립트 실행)
 • .unantibomb / .unab : 안티 폭탄 끄기 (오븐 삭제)
 • .antiinplots / .aip : 집 내부 플레이어 잡기
 • .unantiinplots / .unaip : 납치 기능 끄기
@@ -2765,7 +2619,7 @@ else
 end
 
 
-StarterGui:SetCore("SendNotification", { Title = "v10.5 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
+StarterGui:SetCore("SendNotification", { Title = "v10.6 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
 
 chatConnection = lp.Chatted:Connect(function(msg)
     local cleanMsg = msg:gsub("^%s+", "")
@@ -2785,7 +2639,7 @@ mainInputConnection = UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-print("v10.5 명령어 스크립트가 로딩 되었습니다 --")
+print("v10.6 명령어 스크립트가 로딩 되었습니다 --")
 
 local function cleanup()
     walkflingEnabled = false
@@ -2793,7 +2647,15 @@ local function cleanup()
     togglePlcd(false) 
     toggleAutoReset(false) 
     toggleTakeFood(false) 
-    toggleAntiBomb(false) 
+    
+    if getgenv().AntiBombToggle then
+        getgenv().AntiBombToggle = false
+        if getgenv().AntiBombOven then
+            pcall(function() getgenv().AntiBombOven:Destroy() end)
+            getgenv().AntiBombOven = nil
+        end
+    end
+    
     toggleAntiInPlots(false) 
     toggleDelLines(false) 
     toggleSpin(false)
