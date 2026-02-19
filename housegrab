@@ -83,6 +83,6 @@ end)
 
 StarterGui:SetCore("SendNotification", {
     Title = "House Grab",
-    Text = "스크립트가 켜졌습니다. (ON)",
+    Text = "스크립트가 켜졌습니다. 작동키 G",
     Duration = 3
 })
