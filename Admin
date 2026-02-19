@@ -1488,12 +1488,21 @@ local function processCommand(msg)
         loadstring(game:HttpGet('https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/AntiVehicleToys'))()
 
     elseif lowerMsg == ".unavt" or lowerMsg == ".unantivt" then
-        getgenv().AntiVehicleToyEnabled = false
-        game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "Anti-Vehicle Toy";
-            Text = "Disabled (꺼짐)";
-            Duration = 3;
-        })
+        -- Anti-Vehicle Toy OFF v1.2
+        if getgenv().AntiVehicleToyEnabled then
+            getgenv().AntiVehicleToyEnabled = false
+            game:GetService("StarterGui"):SetCore("SendNotification", {
+                Title = "Anti-Vehicle Toy";
+                Text = "Disabled (꺼짐)";
+                Duration = 3;
+            })
+        else
+            game:GetService("StarterGui"):SetCore("SendNotification", {
+                Title = "Anti-Vehicle Toy";
+                Text = "Already Disabled (이미 꺼져있음)";
+                Duration = 3;
+            })
+        end
 
     elseif lowerMsg == ".hg" then
         loadstring(game:HttpGet('https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/housegrab'))()
