@@ -1,4 +1,4 @@
--- Version: v10.4
+-- Version: v10.5
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
 local StarterGui = game:GetService("StarterGui")
@@ -67,6 +67,8 @@ local currentFlyType = nil
 local flySpeed = 50
 local flyObjects = {} 
 local lastFlyTargetPart = nil -- [수정됨: 이전 비행 타겟 파트 추적용]
+local vflyVehicles = {} -- 추가됨: vfly 시 탑승했던 차량들
+local currentVFlyVehicle = nil -- 추가됨: 현재 vfly 중인 차량
 
 -- [무한점프 관련 변수]
 local infJumpConnection = nil
@@ -742,7 +744,7 @@ local function toggleSpin(state, speed)
     end
 end
 
--- [Fly & VFly - Velocity Fly 방식 적용 (수정됨: v10.4 속도 유지 및 떨림 완화)]
+-- [Fly & VFly - Velocity Fly 방식 적용 (수정됨: v10.5 속도 유지 및 떨림 완화 및 차량 고정 기능)]
 local function startFlying(mode, speedInput)
     if flyConnection then flyConnection:Disconnect() flyConnection = nil end
     if lp.Character then
@@ -781,6 +783,23 @@ local function startFlying(mode, speedInput)
             isInVehicle = true
             if targetPart.Parent:IsA("Model") and targetPart.Parent.PrimaryPart then
                 targetPart = targetPart.Parent.PrimaryPart
+            end
+            
+            -- [vfly 차량 고정 로직 추가]
+            if game.PlaceId == 6961824067 then
+                currentVFlyVehicle = targetPart
+                currentVFlyVehicle.Anchored = false
+                local found = false
+                for _, v in ipairs(vflyVehicles) do
+                    if v == currentVFlyVehicle then found = true break end
+                end
+                if not found then table.insert(vflyVehicles, currentVFlyVehicle) end
+            end
+        else
+            -- [vfly 탑승 해제 시 차량 고정]
+            if game.PlaceId == 6961824067 and currentVFlyVehicle then
+                pcall(function() currentVFlyVehicle.Anchored = true end)
+                currentVFlyVehicle = nil
             end
         end
 
@@ -852,6 +871,17 @@ local function stopFlying()
     end
     flyObjects = {}
     lastFlyTargetPart = nil 
+    
+    -- [unvfly 시 차량 고정 해제 로직]
+    if game.PlaceId == 6961824067 then
+        for _, veh in ipairs(vflyVehicles) do
+            pcall(function()
+                if veh and veh.Parent then veh.Anchored = false end
+            end)
+        end
+        vflyVehicles = {}
+        currentVFlyVehicle = nil
+    end
     
     if lp.Character then
         for _, v in pairs(lp.Character:GetDescendants()) do
@@ -2726,7 +2756,7 @@ else
 end
 
 
-StarterGui:SetCore("SendNotification", { Title = "v10.4 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
+StarterGui:SetCore("SendNotification", { Title = "v10.5 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
 
 chatConnection = lp.Chatted:Connect(function(msg)
     local cleanMsg = msg:gsub("^%s+", "")
@@ -2746,7 +2776,7 @@ mainInputConnection = UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-print("v10.4 명령어 스크립트가 로딩 되었습니다 --")
+print("v10.5 명령어 스크립트가 로딩 되었습니다 --")
 
 local function cleanup()
     walkflingEnabled = false
