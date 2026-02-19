@@ -1,4 +1,10 @@
--- v2.5
+-- v2.7
+if getgenv().AntiBombToggle then
+    return -- 이미 켜져 있다면 중복 실행 방지
+end
+
+getgenv().AntiBombToggle = true
+
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -61,8 +67,12 @@ if not myOven then
     warn("오븐을 찾을 수 없습니다.")
     -- 실패 시에도 원래 위치로 복귀 시도
     HumanoidRootPart.CFrame = OriginalCFrame
+    getgenv().AntiBombToggle = false -- 실패했으므로 토글 상태 초기화
     return
 end
+
+-- 나중에 끌 때 삭제할 수 있도록 전역 변수에 저장
+getgenv().AntiBombOven = myOven
 
 local ovenMain = myOven:WaitForChild("Main")
 
@@ -106,7 +116,7 @@ end
 local SafeZoneCFrame = CFrame.new(0, 30000, 0) -- 대기 장소 (Y 30,000)
 
 task.spawn(function()
-    while myOven and myOven.Parent do
+    while getgenv().AntiBombToggle and myOven and myOven.Parent do
         local foundTarget = nil
         local targetCFrame = nil
 
@@ -159,7 +169,8 @@ task.spawn(function()
             if targetCFrame then
                 -- [공격] 0.1초 동안 10번 왕복 (스팸 타격)
                 for i = 1, 10 do
-                    if not foundTarget or not foundTarget.Parent then break end
+                    -- 토글이 꺼졌거나 타겟이 사라지면 즉시 중지
+                    if not getgenv().AntiBombToggle or not foundTarget or not foundTarget.Parent then break end
 
                     -- 실시간 위치 갱신
                     if foundTarget.Name == "BombBalloon" or foundTarget.Name == "BalloonModel" then
