@@ -152,7 +152,7 @@ task.spawn(function()
                     
                     -- 돌아와서 관성 제거
                     root.Anchored = true
-                    task.wait(0.05)
+                    task.wait(0.02)
                     root.Anchored = false
 
                     if root and vs then
