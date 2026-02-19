@@ -1,4 +1,4 @@
--- Version: v10.2
+-- Version: v10.3
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
 local StarterGui = game:GetService("StarterGui")
@@ -44,7 +44,7 @@ local antiAfkEnabled = false
 local antiAfkConnection = nil
 
 -- [Anti-Lag 관련 변수]
-local antiLagEnabled = true 
+local antiLagEnabled = false -- [수정됨: v10.3 기본값 false로 변경하여 자동 실행 방지]
 local antiLagLoop = nil
 
 -- [DelLines (CharacterAndBeamMove) 관련 변수]
@@ -2716,17 +2716,6 @@ local cmdFrame, cmdInput, cmdShow, cmdHide = createCmdBar()
 
 local targetPlaceId = 6961824067
 
-if antiLagEnabled then
-    task.spawn(function()
-        local delayTime = (game.PlaceId == targetPlaceId) and 5 or 10
-        task.wait(delayTime)
-        
-        if antiLagEnabled then 
-            toggleAntiLag(true)
-        end
-    end)
-end
-
 if game.PlaceId == targetPlaceId then
     task.spawn(function()
         task.wait(3)
@@ -2735,6 +2724,9 @@ if game.PlaceId == targetPlaceId then
 
         task.wait(2) 
         toggleTakeFood(true)
+        
+        -- [v10.3 수정: 여기서만 자동으로 Anti-Lag 켜짐]
+        toggleAntiLag(true)
         
         StarterGui:SetCore("SendNotification", { Title = "자동 설정 완료", Text = "특정 게임(ID:"..targetPlaceId..") 설정이 적용되었습니다.", Duration = 5 })
     end)
@@ -2762,7 +2754,7 @@ else
 end
 
 
-StarterGui:SetCore("SendNotification", { Title = "v10.2 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
+StarterGui:SetCore("SendNotification", { Title = "v10.3 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
 
 chatConnection = lp.Chatted:Connect(function(msg)
     local cleanMsg = msg:gsub("^%s+", "")
@@ -2782,7 +2774,7 @@ mainInputConnection = UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-print("v10.2 명령어 스크립트가 로딩 되었습니다 --")
+print("v10.3 명령어 스크립트가 로딩 되었습니다 --")
 
 local function cleanup()
     walkflingEnabled = false
