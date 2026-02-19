@@ -1,0 +1,88 @@
+-- v1.1 House Grab ON
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
+local StarterGui = game:GetService("StarterGui")
+
+local plr = Players.LocalPlayer
+
+-- 이미 실행 중인지 확인
+if getgenv().HouseGrabConnection then
+    StarterGui:SetCore("SendNotification", {
+        Title = "House Grab",
+        Text = "이미 실행 중입니다!",
+        Duration = 3
+    })
+    return
+end
+
+-- Plot 위치 찾는 함수
+local function getMyPlot()
+    for i = 1, 5 do
+        local plot = Workspace.Plots:FindFirstChild("Plot" .. i)
+        if plot then
+            local plotSign = plot:FindFirstChild("PlotSign")
+            if plotSign then
+                local thisPlotsOwners = plotSign:FindFirstChild("ThisPlotsOwners")
+                if thisPlotsOwners then
+                    for _, child in ipairs(thisPlotsOwners:GetChildren()) do
+                        if child:IsA("StringValue") and child.Value == plr.Name then
+                            return plot.PlotArea
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return nil
+end
+
+local isExecuting = false
+
+-- G키 입력 감지 연결 및 전역 변수에 저장
+getgenv().HouseGrabConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if input.KeyCode == Enum.KeyCode.G then
+        if isExecuting then return end
+        
+        local char = plr.Character
+        if not char then return end
+
+        local torso = char:FindFirstChild("Torso") or char:FindFirstChild("HumanoidRootPart")
+        if not torso then return end
+
+        local inPlot = plr:FindFirstChild("InPlot")
+        if not inPlot or inPlot.Value == false then
+            return
+        end
+
+        local TP = getMyPlot()
+        if not TP then
+            return
+        end
+
+        isExecuting = true
+
+        local GrabParts = Workspace:FindFirstChild("GrabParts")
+        -- 마우스 클릭 (도구 사용 등)
+        if GrabParts then
+            mouse1click()
+        end
+
+        local OCF = torso.CFrame
+        torso.CFrame = TP.CFrame
+        task.wait(0.15)
+        torso.CFrame = OCF
+        task.wait(0.15)
+        mouse1click()
+        
+        isExecuting = false
+    end
+end)
+
+StarterGui:SetCore("SendNotification", {
+    Title = "House Grab",
+    Text = "스크립트가 켜졌습니다. (ON)",
+    Duration = 3
+})
