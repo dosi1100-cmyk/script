@@ -18,7 +18,7 @@ local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
 local OriginalCFrame = HumanoidRootPart.CFrame
 
 -- [설정] 2. 작업 시작 좌표 (새로 변경된 좌표)
-local SetupCoordinate = Vector3.new(116.35771179199219, 298.0579833984375, 332.91143798828125)
+local SetupCoordinate = Vector3.new(543,-7,-268)
 
 -- [설정] 타겟 폭탄 이름 목록
 local TargetBombNames = {
