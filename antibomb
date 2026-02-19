@@ -1,0 +1,197 @@
+-- v2.5
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+
+-- [설정] 1. 원래 위치 저장 (작업 끝나고 돌아올 곳)
+local OriginalCFrame = HumanoidRootPart.CFrame
+
+-- [설정] 2. 작업 시작 좌표 (새로 변경된 좌표)
+local SetupCoordinate = Vector3.new(116.35771179199219, 298.0579833984375, 332.91143798828125)
+
+-- [설정] 타겟 폭탄 이름 목록
+local TargetBombNames = {
+    ["BombMissile"] = true,
+    ["BombDarkMatter"] = true,
+    ["BombBalloon"] = true,     -- (모델 자체로 텔레포트)
+    ["BallSnowball"] = true,
+    ["BalloonModel"] = true     -- Balloons 폴더 내 타겟
+}
+
+-- [설정] 오븐 버튼 작동 순서
+local ButtonSequence = {"Button1", "Button2", "ButtonOven", "Button3", "Button4"}
+
+--------------------------------------------------------------------------------
+-- 1. 작업 장소로 이동 (강제 좌표이동)
+--------------------------------------------------------------------------------
+if HumanoidRootPart then
+    HumanoidRootPart.CFrame = CFrame.new(SetupCoordinate)
+    task.wait(0.1) -- 위치 동기화 대기
+end
+
+--------------------------------------------------------------------------------
+-- 2. 오븐 소환 요청
+--------------------------------------------------------------------------------
+local spawnRemote = ReplicatedStorage:WaitForChild("MenuToys"):WaitForChild("SpawnToyRemoteFunction")
+
+-- 내 앞 5 Studs 앞에 소환
+local spawnPos = HumanoidRootPart.CFrame * CFrame.new(0, 0, -5)
+
+spawnRemote:InvokeServer(
+    "OvenDarkGray",
+    spawnPos,
+    Vector3.new(0, 0, 0)
+)
+
+--------------------------------------------------------------------------------
+-- 3. 오븐 찾기 및 오븐 뒤 5 Studs 고정 텔레포트
+--------------------------------------------------------------------------------
+-- 내 장난감 폴더 이름
+local myToyFolderName = LocalPlayer.Name .. "SpawnedInToys" 
+
+local myToyFolder = Workspace:WaitForChild(myToyFolderName)
+local myOven = myToyFolder:WaitForChild("OvenDarkGray", 5)
+
+if not myOven then
+    warn("오븐을 찾을 수 없습니다.")
+    -- 실패 시에도 원래 위치로 복귀 시도
+    HumanoidRootPart.CFrame = OriginalCFrame
+    return
+end
+
+local ovenMain = myOven:WaitForChild("Main")
+
+-- [수정됨] 오븐 뒤 5 Studs로 강제 고정 텔레포트 (벽 무시)
+if HumanoidRootPart and ovenMain then
+    -- CFrame 설정은 물리 충돌을 무시하고 해당 좌표로 즉시 이동합니다.
+    HumanoidRootPart.CFrame = ovenMain.CFrame * CFrame.new(0, 0, 5)
+end
+
+--------------------------------------------------------------------------------
+-- 4. 셋오너 및 불 키기
+--------------------------------------------------------------------------------
+task.wait(0.1) 
+
+local interactRemote = ReplicatedStorage:WaitForChild("GrabEvents"):WaitForChild("SetNetworkOwner")
+
+-- 오븐 SoundPart 셋오너
+local soundPart = myOven:WaitForChild("SoundPart", 2)
+if soundPart then
+    interactRemote:FireServer(soundPart, soundPart.CFrame)
+end
+
+for _, btnName in ipairs(ButtonSequence) do
+    local btn = myOven:WaitForChild(btnName, 2)
+    if btn then
+        interactRemote:FireServer(btn, btn.CFrame)
+        task.wait() 
+    end
+end
+--------------------------------------------------------------------------------
+-- 5. 원래 위치로 복귀
+--------------------------------------------------------------------------------
+if HumanoidRootPart then
+    HumanoidRootPart.CFrame = OriginalCFrame
+end
+
+
+--------------------------------------------------------------------------------
+-- 6. 감지 및 초고속 왕복 타격 루프 (Y 30,000 대기)
+--------------------------------------------------------------------------------
+local SafeZoneCFrame = CFrame.new(0, 30000, 0) -- 대기 장소 (Y 30,000)
+
+task.spawn(function()
+    while myOven and myOven.Parent do
+        local foundTarget = nil
+        local targetCFrame = nil
+
+        -- [검색 1] 플레이어 장난감 폴더들 검색
+        for _, folder in pairs(Workspace:GetChildren()) do
+            if string.sub(folder.Name, -13) == "SpawnedInToys" then
+                
+                -- [안전장치 1] 내 폴더는 건너뛰기
+                if folder.Name == myToyFolderName then
+                    continue 
+                end
+
+                for _, toy in pairs(folder:GetChildren()) do
+                    if TargetBombNames[toy.Name] then
+                        foundTarget = toy
+                        break
+                    end
+                end
+            end
+            if foundTarget then break end
+        end
+
+        -- [검색 2] Balloons 폴더
+        if not foundTarget then
+            local balloonsFolder = Workspace:FindFirstChild("Balloons")
+            if balloonsFolder then
+                for _, toy in pairs(balloonsFolder:GetChildren()) do
+                    if TargetBombNames[toy.Name] then
+                        foundTarget = toy
+                        break
+                    end
+                end
+            end
+        end
+
+        -- [안전장치 2] 이중 확인
+        if foundTarget and foundTarget.Parent.Name == myToyFolderName then
+            foundTarget = nil 
+        end
+
+        -- 타겟 공격 로직
+        if foundTarget then
+            -- 위치 정보 획득
+            if foundTarget.Name == "BombBalloon" or foundTarget.Name == "BalloonModel" then
+                targetCFrame = foundTarget:GetPivot()
+            elseif foundTarget:FindFirstChild("Main") then
+                targetCFrame = foundTarget.Main.CFrame
+            end
+
+            if targetCFrame then
+                -- [공격] 0.1초 동안 10번 왕복 (스팸 타격)
+                for i = 1, 10 do
+                    if not foundTarget or not foundTarget.Parent then break end
+
+                    -- 실시간 위치 갱신
+                    if foundTarget.Name == "BombBalloon" or foundTarget.Name == "BalloonModel" then
+                        targetCFrame = foundTarget:GetPivot()
+                    elseif foundTarget:FindFirstChild("Main") then
+                        targetCFrame = foundTarget.Main.CFrame
+                    end
+                    
+                    if not targetCFrame then break end -- 추가 안전장치
+
+                    -- 1. 공격
+                    ovenMain.CFrame = targetCFrame
+                    ovenMain.Velocity = Vector3.zero
+                    ovenMain.RotVelocity = Vector3.zero
+                    RunService.Heartbeat:Wait()
+
+                    -- 2. 회피
+                    ovenMain.CFrame = SafeZoneCFrame
+                    ovenMain.Velocity = Vector3.zero
+                    ovenMain.RotVelocity = Vector3.zero
+                    RunService.Heartbeat:Wait()
+                end
+            else
+                -- [버그 수정] targetCFrame을 찾지 못했을 때 무한 루프(화면 멈춤)를 방지하기 위한 대기 추가
+                task.wait()
+            end
+        else
+            -- [대기]
+            ovenMain.CFrame = SafeZoneCFrame
+            ovenMain.Velocity = Vector3.zero
+            ovenMain.RotVelocity = Vector3.zero
+            task.wait()
+        end
+    end
+end)
