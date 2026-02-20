@@ -1608,7 +1608,7 @@ local function processCommand(msg)
                 Lighting.OutdoorAmbient = savedLightingSettings.OutdoorAmbient
                 Lighting.Ambient = savedLightingSettings.Ambient
             else
-                Lighting.Brightness = 1
+                Lighting.Brightness = 0.1
                 Lighting.GlobalShadows = true
             end
             StarterGui:SetCore("SendNotification", {Title = "Fullbright 해제", Text = "밝기를 원래대로 되돌렸습니다.", Duration = 3})
