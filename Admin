@@ -950,7 +950,7 @@ local function toggleTakeFood(state)
         takeFoodEnabled = true
         if getgenv then getgenv().TakeFoodActive = true else _G.TakeFoodActive = true end
 
-        local VoidCFrame = CFrame.new(0, -30000, 0)
+        local VoidCFrame = CFrame.new(0, -99999, 0)
         local ZeroVector = Vector3.new(0, 0, 0)
         local MySpawnFolderName = lp.Name .. "SpawnedInToys"
         
