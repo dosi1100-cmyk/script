@@ -1,4 +1,4 @@
--- Version: v10.7
+-- Version: v10.8
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
 local StarterGui = game:GetService("StarterGui")
@@ -126,8 +126,9 @@ local viewingPlayer = nil
 local viewConnection = nil
 
 -- [Kill 및 LoopKill 관련 변수]
-local loopKillTarget = nil
-local loopKillConnection = nil
+local loopKillEnabled = false
+local loopKillTargets = {}
+local currentProcessing = {}
 
 -- Executor별 HTTP Request 호환성 처리 (Server Hop 등에서 사용됨)
 local http_request = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
@@ -1245,7 +1246,7 @@ local function BACK(originCF)
     end
 end
 
-local function executeKill(targetPlayer)
+local function executeKill(targetPlayer, isLoopKill)
     if not targetPlayer then return false end
 
     local character, hrp, head = safeGetCharacterParts(targetPlayer)
@@ -1264,19 +1265,20 @@ local function executeKill(targetPlayer)
         end
     end)
 
-    local maxAttempts = 50
-    local attempts = 0
-    while attempts < maxAttempts do
+    while true do
+        if isLoopKill and not loopKillEnabled then break end
+        
         if not targetPlayer or not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("Head") then break end
+        
         pcall(function()
             ReplicatedStorage.GrabEvents.SetNetworkOwner:FireServer(head, head.CFrame)
         end)
+        
         local ownerTag = head:FindFirstChild("PartOwner")
         if ownerTag and ownerTag:IsA("StringValue") and ownerTag.Value == lp.Name then
             break
         end
-        attempts = attempts + 1
-        task.wait(0.05)
+        task.wait()
     end
 
     tpRunning = false
@@ -1289,9 +1291,17 @@ local function executeKill(targetPlayer)
             ReplicatedStorage.GrabEvents.SetNetworkOwner:FireServer(head, head.CFrame)
         end)
 
-        if humanoid.RigType ~= Enum.HumanoidRigType.R15 and humanoid.SeatPart == nil then humanoid.RigType = Enum.HumanoidRigType.R15 end
-        if humanoid.BreakJointsOnDeath == true and humanoid.SeatPart == nil then humanoid.BreakJointsOnDeath = false end
-        if head:FindFirstChildOfClass("BallSocketConstraint") then head.BallSocketConstraint.Attachment0 = nil end
+        if humanoid.RigType ~= Enum.HumanoidRigType.R15 and humanoid.SeatPart == nil then 
+            humanoid.RigType = Enum.HumanoidRigType.R15 
+        end
+
+        if humanoid.BreakJointsOnDeath == true and humanoid.SeatPart == nil then 
+            humanoid.BreakJointsOnDeath = false 
+        end
+
+        if head:FindFirstChildOfClass("BallSocketConstraint") then 
+            head.BallSocketConstraint.Attachment0 = nil 
+        end
 
         local FallenY = workspace.FallenPartsDestroyHeight
         local targetY = (FallenY <= -50000 and -49999) or (FallenY <= -100 and -99) or -100
@@ -1307,38 +1317,48 @@ local function executeKill(targetPlayer)
 end
 
 local function stopLoopKill()
-    loopKillTarget = nil
-    if loopKillConnection then
-        loopKillConnection:Disconnect()
-        loopKillConnection = nil
-    end
+    loopKillEnabled = false
+    loopKillTargets = {}
+    currentProcessing = {}
 end
 
 local function startLoopKill(targetPlayer)
-    stopLoopKill()
-    loopKillTarget = targetPlayer
+    if not table.find(loopKillTargets, targetPlayer) then
+        table.insert(loopKillTargets, targetPlayer)
+    end
     
-    loopKillConnection = RunService.Heartbeat:Connect(function()
-        if not loopKillTarget or not loopKillTarget.Parent then 
-            stopLoopKill() 
-            return 
-        end
-        
-        local char = loopKillTarget.Character
-        if char then
-            local hum = char:FindFirstChildOfClass("Humanoid")
-            if hum and hum.Health > 0 then
-                if not char:GetAttribute("BeingKilled") then
-                    char:SetAttribute("BeingKilled", true)
-                    task.spawn(function()
-                        executeKill(loopKillTarget)
-                        task.wait(1)
-                        if char and char.Parent then
-                            char:SetAttribute("BeingKilled", false)
+    if loopKillEnabled then return end
+    loopKillEnabled = true
+
+    task.spawn(function()
+        while loopKillEnabled do
+            for _, player in ipairs(loopKillTargets) do
+                if player then
+                    local character = player.Character
+                    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+
+                    if humanoid and humanoid.Health > 0 then
+                        if not currentProcessing[player] then
+                            currentProcessing[player] = true
+
+                            task.spawn(function()
+                                local success = executeKill(player, true)
+
+                                if success then
+                                    task.wait(2)
+                                end
+
+                                currentProcessing[player] = nil
+                            end)
                         end
-                    end)
+                    else
+                        currentProcessing[player] = nil
+                    end
+                else
+                    currentProcessing[player] = nil
                 end
             end
+            task.wait(0.05)
         end
     end)
 end
@@ -1661,7 +1681,7 @@ local function processCommand(msg)
         end
         if targetPlayer then
             StarterGui:SetCore("SendNotification", {Title = "Kill", Text = targetPlayer.Name .. "님을 한 번 죽입니다.", Duration = 3})
-            task.spawn(function() executeKill(targetPlayer) end)
+            task.spawn(function() executeKill(targetPlayer, false) end)
         else
             StarterGui:SetCore("SendNotification", {Title = "오류", Text = "플레이어를 찾을 수 없습니다.", Duration = 3})
         end
@@ -2796,7 +2816,7 @@ else
 end
 
 
-StarterGui:SetCore("SendNotification", { Title = "v10.7 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
+StarterGui:SetCore("SendNotification", { Title = "v10.8 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
 
 chatConnection = lp.Chatted:Connect(function(msg)
     local cleanMsg = msg:gsub("^%s+", "")
@@ -2816,7 +2836,7 @@ mainInputConnection = UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-print("v10.7 명령어 스크립트가 로딩 되었습니다 --")
+print("v10.8 명령어 스크립트가 로딩 되었습니다 --")
 
 local function cleanup()
     walkflingEnabled = false
