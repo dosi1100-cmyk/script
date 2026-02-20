@@ -1,4 +1,4 @@
--- Version: v10.6
+-- Version: v10.7
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
 local StarterGui = game:GetService("StarterGui")
@@ -66,9 +66,9 @@ local flyConnection = nil
 local currentFlyType = nil
 local flySpeed = 50
 local flyObjects = {} 
-local lastFlyTargetPart = nil -- [수정됨: 이전 비행 타겟 파트 추적용]
-local vflyVehicles = {} -- 추가됨: vfly 시 탑승했던 차량들
-local currentVFlyVehicle = nil -- 추가됨: 현재 vfly 중인 차량
+local lastFlyTargetPart = nil 
+local vflyVehicles = {} 
+local currentVFlyVehicle = nil 
 
 -- [무한점프 관련 변수]
 local infJumpConnection = nil
@@ -124,6 +124,10 @@ local cmdFocused = false
 -- [관전 관련 변수 추가]
 local viewingPlayer = nil
 local viewConnection = nil
+
+-- [Kill 및 LoopKill 관련 변수]
+local loopKillTarget = nil
+local loopKillConnection = nil
 
 -- Executor별 HTTP Request 호환성 처리 (Server Hop 등에서 사용됨)
 local http_request = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
@@ -683,7 +687,6 @@ local function toggleAutoReset(state)
     end
 end
 
-
 -- [Noclip]
 local function toggleNoclip(state)
     if state then
@@ -740,7 +743,7 @@ local function toggleSpin(state, speed)
     end
 end
 
--- [Fly & VFly - Velocity Fly 방식 적용 (수정됨: v10.5 속도 유지 및 떨림 완화 및 차량 고정 기능)]
+-- [Fly & VFly - Velocity Fly 방식 적용]
 local function startFlying(mode, speedInput)
     if flyConnection then flyConnection:Disconnect() flyConnection = nil end
     if lp.Character then
@@ -781,7 +784,6 @@ local function startFlying(mode, speedInput)
                 targetPart = targetPart.Parent.PrimaryPart
             end
             
-            -- [vfly 차량 고정 로직 추가]
             if game.PlaceId == 6961824067 then
                 currentVFlyVehicle = targetPart
                 currentVFlyVehicle.Anchored = false
@@ -792,14 +794,12 @@ local function startFlying(mode, speedInput)
                 if not found then table.insert(vflyVehicles, currentVFlyVehicle) end
             end
         else
-            -- [vfly 탑승 해제 시 차량 고정]
             if game.PlaceId == 6961824067 and currentVFlyVehicle then
                 pcall(function() currentVFlyVehicle.Anchored = true end)
                 currentVFlyVehicle = nil
             end
         end
 
-        -- [수정됨: 탑승/하차 시 타겟 파트가 변경되면 이전 파트의 BodyMover를 완벽히 제거 (속도 저하 및 충돌 방지)]
         if lastFlyTargetPart and lastFlyTargetPart ~= targetPart then
             for _, obj in pairs(flyObjects) do
                 if obj and obj.Parent then obj:Destroy() end
@@ -824,7 +824,6 @@ local function startFlying(mode, speedInput)
         if not bg then
             bg = Instance.new("BodyGyro")
             bg.Name = "VelocityFly_BG"
-            -- [수정됨: 차량 탑승 시 떨림 방지를 위해 Power 값을 조절하여 부드러운 회전 유도]
             bg.P = isInVehicle and 3e4 or 9e4
             bg.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
             bg.CFrame = targetPart.CFrame
@@ -868,7 +867,6 @@ local function stopFlying()
     flyObjects = {}
     lastFlyTargetPart = nil 
     
-    -- [unvfly 시 차량 고정 해제 로직]
     if game.PlaceId == 6961824067 then
         for _, veh in ipairs(vflyVehicles) do
             pcall(function()
@@ -1213,6 +1211,137 @@ local function toggleAntiInPlots(state)
     end
 end
 
+-- ==============================================================================
+-- [ Kill 및 Loop Kill 기능 (FTAP 기반) ]
+-- ==============================================================================
+local function safeGetCharacterParts(player)
+    if not player then return nil end
+    local char = player.Character
+    if not char then return nil end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local head = char:FindFirstChild("Head")
+    return char, hrp, head
+end
+
+local function TP(target)
+    local TCHAR = target.Character
+    local THRP = TCHAR and (TCHAR:FindFirstChild("Torso") or TCHAR:FindFirstChild("HumanoidRootPart"))
+    local localChar = lp.Character
+    local localHRP = localChar and localChar:FindFirstChild("HumanoidRootPart")
+
+    if TCHAR and THRP and localHRP then
+        local ping = lp:GetNetworkPing()
+        local offset = THRP.Position + (THRP.Velocity * (ping + 0.15))
+        local targetCFrame = CFrame.new(offset) * THRP.CFrame.Rotation
+        localHRP.CFrame = targetCFrame
+        return true, targetCFrame
+    end
+    return false, nil
+end
+
+local function BACK(originCF)
+    if lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then
+        lp.Character.HumanoidRootPart.CFrame = originCF
+    end
+end
+
+local function executeKill(targetPlayer)
+    if not targetPlayer then return false end
+
+    local character, hrp, head = safeGetCharacterParts(targetPlayer)
+    if not hrp or not head then return false end
+
+    local myChar = lp.Character
+    local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    if not myHrp then return false end
+    local originCF = myHrp.CFrame
+
+    local tpRunning = true
+    task.spawn(function()
+        while tpRunning do
+            local ok, cf = TP(targetPlayer)
+            task.wait()
+        end
+    end)
+
+    local maxAttempts = 50
+    local attempts = 0
+    while attempts < maxAttempts do
+        if not targetPlayer or not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("Head") then break end
+        pcall(function()
+            ReplicatedStorage.GrabEvents.SetNetworkOwner:FireServer(head, head.CFrame)
+        end)
+        local ownerTag = head:FindFirstChild("PartOwner")
+        if ownerTag and ownerTag:IsA("StringValue") and ownerTag.Value == lp.Name then
+            break
+        end
+        attempts = attempts + 1
+        task.wait(0.05)
+    end
+
+    tpRunning = false
+
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        pcall(function()
+            ReplicatedStorage.GrabEvents.SetNetworkOwner:FireServer(head, head.CFrame)
+            ReplicatedStorage.GrabEvents.SetNetworkOwner:FireServer(head, head.CFrame)
+            ReplicatedStorage.GrabEvents.SetNetworkOwner:FireServer(head, head.CFrame)
+        end)
+
+        if humanoid.RigType ~= Enum.HumanoidRigType.R15 and humanoid.SeatPart == nil then humanoid.RigType = Enum.HumanoidRigType.R15 end
+        if humanoid.BreakJointsOnDeath == true and humanoid.SeatPart == nil then humanoid.BreakJointsOnDeath = false end
+        if head:FindFirstChildOfClass("BallSocketConstraint") then head.BallSocketConstraint.Attachment0 = nil end
+
+        local FallenY = workspace.FallenPartsDestroyHeight
+        local targetY = (FallenY <= -50000 and -49999) or (FallenY <= -100 and -99) or -100
+        local storso = character:FindFirstChild("Torso")
+
+        if storso then
+            storso.CFrame = CFrame.new(storso.Position.X, targetY, storso.Position.Z)
+        end
+    end
+
+    if originCF then BACK(originCF) end
+    return true
+end
+
+local function stopLoopKill()
+    loopKillTarget = nil
+    if loopKillConnection then
+        loopKillConnection:Disconnect()
+        loopKillConnection = nil
+    end
+end
+
+local function startLoopKill(targetPlayer)
+    stopLoopKill()
+    loopKillTarget = targetPlayer
+    
+    loopKillConnection = RunService.Heartbeat:Connect(function()
+        if not loopKillTarget or not loopKillTarget.Parent then 
+            stopLoopKill() 
+            return 
+        end
+        
+        local char = loopKillTarget.Character
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 then
+                if not char:GetAttribute("BeingKilled") then
+                    char:SetAttribute("BeingKilled", true)
+                    task.spawn(function()
+                        executeKill(loopKillTarget)
+                        task.wait(1)
+                        if char and char.Parent then
+                            char:SetAttribute("BeingKilled", false)
+                        end
+                    end)
+                end
+            end
+        end
+    end)
+end
 
 -- [명령어 처리 통합 함수]
 local function processCommand(msg)
@@ -1334,7 +1463,6 @@ local function processCommand(msg)
         loadstring(game:HttpGet('https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/AntiVehicleToys'))()
 
     elseif lowerMsg == ".unavt" or lowerMsg == ".unantivt" then
-        -- Anti-Vehicle Toy OFF v1.2
         if getgenv().AntiVehicleToyEnabled then
             getgenv().AntiVehicleToyEnabled = false
             game:GetService("StarterGui"):SetCore("SendNotification", {
@@ -1516,6 +1644,51 @@ local function processCommand(msg)
     elseif lowerMsg == ".친구" or lowerMsg == ".친구 목록" or lowerMsg == ".fl" then toggleFriendList()
     elseif lowerMsg == ".서버 정보" or lowerMsg == ".svinfo" then
         if not serverInfoGui or not serverInfoGui.Parent then createServerInfoGui() else serverInfoGui.Enabled = not serverInfoGui.Enabled end
+
+    -- [ FTAP Kill 명령어 처리 ]
+    elseif lowerMsg:sub(1, 6) == ".kill " then
+        local targetNamePart = lowerMsg:sub(7)
+        local targetPlayer = nil
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= lp then
+                local pName = p.Name:lower()
+                local pDisplay = p.DisplayName:lower()
+                if pName:sub(1, #targetNamePart) == targetNamePart or pDisplay:sub(1, #targetNamePart) == targetNamePart then
+                    targetPlayer = p
+                    break
+                end
+            end
+        end
+        if targetPlayer then
+            StarterGui:SetCore("SendNotification", {Title = "Kill", Text = targetPlayer.Name .. "님을 한 번 죽입니다.", Duration = 3})
+            task.spawn(function() executeKill(targetPlayer) end)
+        else
+            StarterGui:SetCore("SendNotification", {Title = "오류", Text = "플레이어를 찾을 수 없습니다.", Duration = 3})
+        end
+
+    elseif lowerMsg:sub(1, 10) == ".loopkill " then
+        local targetNamePart = lowerMsg:sub(11)
+        local targetPlayer = nil
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= lp then
+                local pName = p.Name:lower()
+                local pDisplay = p.DisplayName:lower()
+                if pName:sub(1, #targetNamePart) == targetNamePart or pDisplay:sub(1, #targetNamePart) == targetNamePart then
+                    targetPlayer = p
+                    break
+                end
+            end
+        end
+        if targetPlayer then
+            StarterGui:SetCore("SendNotification", {Title = "Loop Kill", Text = targetPlayer.Name .. "님을 계속해서 죽입니다.", Duration = 3})
+            startLoopKill(targetPlayer)
+        else
+            StarterGui:SetCore("SendNotification", {Title = "오류", Text = "플레이어를 찾을 수 없습니다.", Duration = 3})
+        end
+
+    elseif lowerMsg == ".unloopkill" then
+        stopLoopKill()
+        StarterGui:SetCore("SendNotification", {Title = "Loop Kill 종료", Text = "연속 킬을 중지했습니다.", Duration = 3})
 
     elseif lowerMsg:sub(1, 6) == ".join " then
         local targetNamePart = lowerMsg:sub(7)
@@ -2020,6 +2193,7 @@ local function processCommand(msg)
         togglePlcd(false) 
         toggleAutoReset(false) 
         toggleTakeFood(false)  
+        stopLoopKill()
         
         if getgenv().AntiBombToggle then
             getgenv().AntiBombToggle = false
@@ -2229,6 +2403,9 @@ local function createHelpGui()
 • .pendik [이름] [숫자] : 해당 유저에게 작동
 • .avt / .antivt : 블롭맨, 트랙터 전부 삭제
 • .unavt / .unantivt : 블롭맨, 트랙터 삭제 중지
+• .kill [이름] : 해당 플레이어를 한 번 죽입니다.
+• .loopkill [이름] : 해당 플레이어를 계속 죽입니다.
+• .unloopkill : 연속 킬을 중지합니다.
 ]]
 
     for line in helpText:gmatch("[^\n]+") do
@@ -2619,7 +2796,7 @@ else
 end
 
 
-StarterGui:SetCore("SendNotification", { Title = "v10.6 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
+StarterGui:SetCore("SendNotification", { Title = "v10.7 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
 
 chatConnection = lp.Chatted:Connect(function(msg)
     local cleanMsg = msg:gsub("^%s+", "")
@@ -2639,7 +2816,7 @@ mainInputConnection = UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-print("v10.6 명령어 스크립트가 로딩 되었습니다 --")
+print("v10.7 명령어 스크립트가 로딩 되었습니다 --")
 
 local function cleanup()
     walkflingEnabled = false
@@ -2659,6 +2836,7 @@ local function cleanup()
     toggleAntiInPlots(false) 
     toggleDelLines(false) 
     toggleSpin(false)
+    stopLoopKill()
 end
 
 game:BindToClose(cleanup)
