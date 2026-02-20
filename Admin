@@ -598,7 +598,7 @@ local function togglePlcd(state)
                 box.Name = "PLCD_Highlight"
                 box.Adornee = v
                 box.Color3 = Color3.fromRGB(255, 0, 0) 
-                box.LineThickness = 0.03 
+                box.LineThickness = 0.01 
                 box.SurfaceTransparency = 1 
                 box.Transparency = 0 
                 box.Parent = v
@@ -953,7 +953,7 @@ local function toggleTakeFood(state)
         local VoidCFrame = CFrame.new(0, -99999, 0)
         local ZeroVector = Vector3.new(0, 0, 0)
         local MySpawnFolderName = lp.Name .. "SpawnedInToys"
-        
+
         local TargetItems = {
             ["InstrumentBrassBugle"] = true, ["InstrumentBrassTrumpet"] = true, ["InstrumentBrassVuvuzela"] = true,
             ["InstrumentDrumBongos"] = true, ["InstrumentDrumSnare"] = true, ["InstrumentGuitarAcoustic"] = true,
