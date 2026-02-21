@@ -1,0 +1,202 @@
+-- v1.8 (실행 스크립트)
+local Players = game:GetService("Players")
+local StarterGui = game:GetService("StarterGui")
+local LocalPlayer = Players.LocalPlayer
+
+-- 우측 하단 알림 함수
+local function sendNotification(text)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = "자동 수집기",
+            Text = text,
+            Duration = 5
+        })
+    end)
+end
+
+-- 중복 실행 방지
+if _G.ToyGrabberRunning then
+    sendNotification("이미 자동 수집기가 실행 중입니다. (v1.8)")
+    return
+end
+
+_G.ToyGrabberRunning = true
+_G.ToyGrabberConnections = {}
+sendNotification("스크립트가 실행되었습니다. (v1.8)")
+
+-- 목표 아이템 리스트 세팅
+local targetItems = {
+    -- 악기
+    ["InstrumentBrassBugle"] = true, ["InstrumentBrassTrumpet"] = true, ["InstrumentBrassVuvuzela"] = true,
+    ["InstrumentDrumBongos"] = true, ["InstrumentDrumSnare"] = true, ["InstrumentGuitarAcoustic"] = true,
+    ["InstrumentGuitarBanjo"] = true, ["InstrumentGuitarLyre"] = true, ["InstrumentGuitarUkulele"] = true,
+    ["InstrumentGuitarViolin"] = true, ["InstrumentPianoKeyboard"] = true, ["InstrumentPianoMelodica"] = true,
+    ["InstrumentVoiceMicrophone"] = true, ["InstrumentWoodwindOcarina"] = true, ["InstrumentWoodwindSaxophone"] = true,
+    -- 음식
+    ["PoopPileSparkle"] = true, ["PoopPile"] = true, ["FoodSodaCan"] = true, ["FoodPizzaPepperoni"] = true,
+    ["FoodPizzaCheese"] = true, ["FoodMushroomPoison"] = true, ["FoodMeatStick"] = true, ["FoodMayonnaise"] = true,
+    ["FoodHotdog"] = true, ["FoodHamburger"] = true, ["FoodFrenchFries"] = true, ["FoodDonut"] = true,
+    ["FoodDippyEgg"] = true, ["FoodCoconut"] = true, ["FoodCakePink"] = true, ["FoodBroccoli"] = true,
+    ["FoodBread"] = true, ["FoodBanana"] = true, ["CupMugWhite"] = true, ["CupMugBrown"] = true
+}
+
+-- 반복 처리를 위한 리스트와 중복 방지 세트
+local toyList = {}
+local toySet = {}
+
+-- 아이템 등록 함수
+local function addToy(toy)
+    if targetItems[toy.Name] and not toySet[toy] then
+        toySet[toy] = true
+        table.insert(toyList, toy)
+    end
+end
+
+-- 폴더 내부 감시 함수
+local function monitorFolder(folder)
+    for _, toy in ipairs(folder:GetChildren()) do
+        addToy(toy)
+    end
+    
+    local conn = folder.ChildAdded:Connect(function(toy)
+        task.wait(0.1) -- HoldPart 로딩 대기 시간
+        addToy(toy)
+    end)
+    table.insert(_G.ToyGrabberConnections, conn)
+end
+
+-- 무한 반복 작업 루프 (0.1초에 1개씩 계속 순환)
+task.spawn(function()
+    local currentIndex = 1
+    
+    while _G.ToyGrabberRunning do
+        if #toyList > 0 then
+            -- 리스트의 끝에 도달하면 처음으로 돌아가서 다시 반복
+            if currentIndex > #toyList then
+                currentIndex = 1
+            end
+            
+            local toy = toyList[currentIndex]
+            
+            -- 아이템이 여전히 존재하는지 확인
+            if toy and toy.Parent and toy:FindFirstChild("HoldPart") then
+                -- 가져온 뒤 5Studs 앞에 놓는 로직을 병렬로 실행
+                task.spawn(function()
+                    local char = LocalPlayer.Character
+                    if char and char:FindFirstChild("HumanoidRootPart") then
+                        local holdPart = toy:FindFirstChild("HoldPart")
+                        if holdPart then
+                            local holdFunc = holdPart:FindFirstChild("HoldItemRemoteFunction")
+                            local dropFunc = holdPart:FindFirstChild("DropItemRemoteFunction")
+                            
+                            if holdFunc and dropFunc then
+                                -- 아이템 잡기 이벤트 호출
+                                holdFunc:InvokeServer(toy, char)
+                                -- 바로 이어서 내 앞 5Studs에 놓기 이벤트 호출
+                                local dropCFrame = char.HumanoidRootPart.CFrame * CFrame.new(0, 0, -5)
+                                dropFunc:InvokeServer(toy, dropCFrame, Vector3.new(0, 0, 0))
+                                
+                                -- 가져온 아이템의 충돌(Collide) 끄기
+                                for _, part in ipairs(toy:GetDescendants()) do
+                                    if part:IsA("BasePart") then
+                                        part.CanCollide = false
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end)
+                
+                currentIndex = currentIndex + 1
+                task.wait(0.1) -- 0.1초에 1개씩 가져오기
+            else
+                -- 더 이상 유효하지 않은 아이템은 리스트와 세트에서 제거
+                table.remove(toyList, currentIndex)
+                toySet[toy] = nil
+                -- currentIndex는 증가시키지 않음 (다음 아이템이 현재 인덱스로 당겨지기 때문)
+            end
+        else
+            -- 가져올 아이템이 하나도 없으면 대기
+            task.wait(0.1)
+        end
+    end
+end)
+
+-- Workspace 내의 SpawnedInToys 폴더 찾기 및 새 폴더 감시
+local function initializeWorkspaceMonitor()
+    local myFolderName = LocalPlayer.Name .. "SpawnedInToys"
+    
+    -- 이미 존재하는 폴더 감시
+    for _, folder in ipairs(workspace:GetChildren()) do
+        if folder.Name:match("SpawnedInToys$") and folder.Name ~= myFolderName then
+            monitorFolder(folder)
+        end
+    end
+    
+    -- 새로 생성되는 폴더 감시
+    local conn = workspace.ChildAdded:Connect(function(folder)
+        if folder.Name:match("SpawnedInToys$") and folder.Name ~= myFolderName then
+            monitorFolder(folder)
+        end
+    end)
+    table.insert(_G.ToyGrabberConnections, conn)
+end
+
+-- Workspace 내의 PlotItems 내부 Plot1~5 감시
+local function initializePlotMonitor()
+    local function setupPlotItems(plotItemsFolder)
+        -- 기존에 있는 Plot1~5 감시
+        for i = 1, 5 do
+            local plotFolder = plotItemsFolder:FindFirstChild("Plot" .. i)
+            if plotFolder then
+                monitorFolder(plotFolder)
+            end
+        end
+        
+        -- 나중에 추가되는 Plot1~5 감시
+        local conn = plotItemsFolder.ChildAdded:Connect(function(child)
+            if child.Name:match("^Plot[1-5]$") then
+                monitorFolder(child)
+            end
+        end)
+        table.insert(_G.ToyGrabberConnections, conn)
+    end
+
+    local plotItems = workspace:FindFirstChild("PlotItems")
+    if plotItems then
+        setupPlotItems(plotItems)
+    end
+
+    -- PlotItems 폴더 자체가 나중에 생성될 경우를 대비한 감시
+    local conn = workspace.ChildAdded:Connect(function(child)
+        if child.Name == "PlotItems" then
+            setupPlotItems(child)
+        end
+    end)
+    table.insert(_G.ToyGrabberConnections, conn)
+end
+
+-- Workspace 내의 추가 경로 감시 ("NOT New", "Music")
+local function initializeExtraFolderMonitor()
+    local function setupFolder(folderName)
+        local folder = workspace:FindFirstChild(folderName)
+        if folder then
+            monitorFolder(folder)
+        end
+    end
+
+    setupFolder("NOT New")
+    setupFolder("Music")
+
+    -- 폴더가 나중에 생성될 경우를 대비한 감시
+    local conn = workspace.ChildAdded:Connect(function(child)
+        if child.Name == "NOT New" or child.Name == "Music" then
+            monitorFolder(child)
+        end
+    end)
+    table.insert(_G.ToyGrabberConnections, conn)
+end
+
+initializeWorkspaceMonitor()
+initializePlotMonitor()
+initializeExtraFolderMonitor()
