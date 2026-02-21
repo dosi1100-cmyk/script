@@ -72,7 +72,7 @@ getgenv().HouseGrabConnection = UserInputService.InputBegan:Connect(function(inp
 
         local OCF = torso.CFrame
         torso.CFrame = TP.CFrame
-        task.wait(0.15)
+        task.wait(0.16)
         torso.CFrame = OCF
         task.wait(0.1)
         mouse1click()
