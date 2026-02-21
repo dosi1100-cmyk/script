@@ -1,4 +1,4 @@
--- Version: v10.8
+-- Version: v10.9
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
 local StarterGui = game:GetService("StarterGui")
@@ -2027,6 +2027,36 @@ local function processCommand(msg)
             Duration = 3
         })
 
+    elseif lowerMsg == ".bringall" then
+        loadstring(game:HttpGet('https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/bringall'))()
+    elseif lowerMsg == ".unbringall" then
+        local StarterGui = game:GetService("StarterGui")
+
+        -- 우측 하단 알림 함수
+        local function sendNotification(text)
+            pcall(function()
+                StarterGui:SetCore("SendNotification", {
+                    Title = "자동 수집기",
+                    Text = text,
+                    Duration = 5
+                })
+            end)
+        end
+
+        -- 실행 중인 스크립트 종료 및 정리
+        if _G.ToyGrabberRunning then
+            _G.ToyGrabberRunning = false
+            if _G.ToyGrabberConnections then
+                for _, conn in ipairs(_G.ToyGrabberConnections) do
+                    conn:Disconnect()
+                end
+            end
+            _G.ToyGrabberConnections = {}
+            sendNotification("스크립트가 종료되었습니다. (v1.8)")
+        else
+            sendNotification("실행 중인 자동 수집기가 없습니다.")
+        end
+
     elseif lowerMsg:sub(1, 8) == ".pendik " then
         local args = {}
         for w in string.gmatch(msg:sub(9), "%S+") do
@@ -2426,6 +2456,8 @@ local function createHelpGui()
 • .kill [이름] : 해당 플레이어를 한 번 죽입니다.
 • .loopkill [이름] : 해당 플레이어를 계속 죽입니다.
 • .unloopkill : 연속 킬을 중지합니다.
+• .bringall : 모든 음식, 악기를 내 앞으로 가져온다.
+• .unbringall : 모든 음식, 악기를 내 앞으로 가져오는 기능을 끈다.
 ]]
 
     for line in helpText:gmatch("[^\n]+") do
@@ -2816,7 +2848,7 @@ else
 end
 
 
-StarterGui:SetCore("SendNotification", { Title = "v10.8 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
+StarterGui:SetCore("SendNotification", { Title = "v10.9 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
 
 chatConnection = lp.Chatted:Connect(function(msg)
     local cleanMsg = msg:gsub("^%s+", "")
@@ -2836,7 +2868,7 @@ mainInputConnection = UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-print("v10.8 명령어 스크립트가 로딩 되었습니다 --")
+print("v10.9 명령어 스크립트가 로딩 되었습니다 --")
 
 local function cleanup()
     walkflingEnabled = false
