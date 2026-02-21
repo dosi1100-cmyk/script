@@ -138,7 +138,7 @@ local function ifKickThenF()
                     end
                 end
             end
-            task.wait(0.3) -- 부하 방지를 위한 딜레이
+            task.wait(0.1) -- 부하 방지를 위한 딜레이
         end
     end)
 end
