@@ -119,26 +119,3 @@ StarterGui:SetCore("SendNotification", {
     Text = "Loop Grab v5.7 : ON",
     Duration = 3
 })
-
-local StarterGui = game:GetService("StarterGui")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-if getgenv().PalletAttackRunning then
-    getgenv().PalletAttackRunning = false
-            
-    if getgenv().PalletAttackConnection then
-        getgenv().PalletAttackConnection:Disconnect()
-        getgenv().PalletAttackConnection = nil
-    end
-            
-    if getgenv().CurrentPalletModel and getgenv().CurrentPalletModel.Parent then
-        local menuToys = ReplicatedStorage:FindFirstChild("MenuToys")
-        local destroyToyRemote = menuToys and menuToys:FindFirstChild("DestroyToy")
-        if destroyToyRemote then
-            pcall(function() destroyToyRemote:FireServer(getgenv().CurrentPalletModel) end)
-        end
-    end
-            
-    getgenv().CurrentPalletModel = nil
-    getgenv().CurrentPalletPart = nil
-    getgenv().PalletAttackTarget = nil
