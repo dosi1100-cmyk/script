@@ -48,7 +48,7 @@ getgenv().LoopGrabRunning = true
 -- ==========================================
 -- [설정 및 변수]
 -- ==========================================
-local SPAM_INTERVAL = 0.02
+local SPAM_INTERVAL = 0.018
 
 -- [리모트 찾기]
 local grabEvents = ReplicatedStorage:WaitForChild("GrabEvents", 5)
