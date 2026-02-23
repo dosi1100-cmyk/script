@@ -120,38 +120,25 @@ StarterGui:SetCore("SendNotification", {
     Duration = 3
 })
 
-        local StarterGui = game:GetService("StarterGui")
-        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local StarterGui = game:GetService("StarterGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-        if getgenv().PalletAttackRunning then
-            getgenv().PalletAttackRunning = false
+if getgenv().PalletAttackRunning then
+    getgenv().PalletAttackRunning = false
             
-            if getgenv().PalletAttackConnection then
-                getgenv().PalletAttackConnection:Disconnect()
-                getgenv().PalletAttackConnection = nil
-            end
+    if getgenv().PalletAttackConnection then
+        getgenv().PalletAttackConnection:Disconnect()
+        getgenv().PalletAttackConnection = nil
+    end
             
-            if getgenv().CurrentPalletModel and getgenv().CurrentPalletModel.Parent then
-                local menuToys = ReplicatedStorage:FindFirstChild("MenuToys")
-                local destroyToyRemote = menuToys and menuToys:FindFirstChild("DestroyToy")
-                if destroyToyRemote then
-                    pcall(function() destroyToyRemote:FireServer(getgenv().CurrentPalletModel) end)
-                end
-            end
-            
-            getgenv().CurrentPalletModel = nil
-            getgenv().CurrentPalletPart = nil
-            getgenv().PalletAttackTarget = nil
-            
-            StarterGui:SetCore("SendNotification", {
-                Title = "System",
-                Text = "Ragdoll Grab v1.4 : OFF",
-                Duration = 3
-            })
-        else
-            StarterGui:SetCore("SendNotification", {
-                Title = "System",
-                Text = "Ragdoll Grab 이 실행 중이 아닙니다.",
-                Duration = 3
-            })
+    if getgenv().CurrentPalletModel and getgenv().CurrentPalletModel.Parent then
+        local menuToys = ReplicatedStorage:FindFirstChild("MenuToys")
+        local destroyToyRemote = menuToys and menuToys:FindFirstChild("DestroyToy")
+        if destroyToyRemote then
+            pcall(function() destroyToyRemote:FireServer(getgenv().CurrentPalletModel) end)
         end
+    end
+            
+    getgenv().CurrentPalletModel = nil
+    getgenv().CurrentPalletPart = nil
+    getgenv().PalletAttackTarget = nil
