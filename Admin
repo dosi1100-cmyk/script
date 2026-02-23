@@ -1,4 +1,4 @@
--- Version: v10.9
+-- Version: v11
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
 local StarterGui = game:GetService("StarterGui")
@@ -1498,6 +1498,27 @@ local function processCommand(msg)
             })
         end
 
+    elseif lowerMsg == ".chams" then
+        loadstring(game:HttpGet('https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/chams'))()
+    elseif lowerMsg == ".unchams" then
+        local Players = game:GetService("Players")
+
+        if _G.ChamsConnections then
+            for _, connection in pairs(_G.ChamsConnections) do
+                connection:Disconnect()
+            end
+            _G.ChamsConnections = {}
+        end
+
+        for _, player in pairs(Players:GetPlayers()) do
+            if player.Character then
+                local highlight = player.Character:FindFirstChild("ChamsESP_Highlight")
+                if highlight then
+                    highlight:Destroy()
+                end
+            end
+        end
+
     elseif lowerMsg == ".hg" then
         loadstring(game:HttpGet('https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/housegrab'))()
     elseif lowerMsg == ".unhg" then
@@ -2848,7 +2869,7 @@ else
 end
 
 
-StarterGui:SetCore("SendNotification", { Title = "v10.9 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
+StarterGui:SetCore("SendNotification", { Title = "v11 스크립트 로드됨", Text = "; 키로 커맨드바 열기 / .help를 이용해서 명령어 목록 보기", Duration = 7 })
 
 chatConnection = lp.Chatted:Connect(function(msg)
     local cleanMsg = msg:gsub("^%s+", "")
@@ -2868,7 +2889,7 @@ mainInputConnection = UserInputService.InputBegan:Connect(function(input, gpe)
     end
 end)
 
-print("v10.9 명령어 스크립트가 로딩 되었습니다 --")
+print("v11 명령어 스크립트가 로딩 되었습니다 --")
 
 local function cleanup()
     walkflingEnabled = false
