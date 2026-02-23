@@ -50,7 +50,7 @@ getgenv().IsRespawning = false
 -- [설정 및 변수]
 -- ==========================================
 local PALLET_NAME = "PalletLightBrown"
-local SPAM_INTERVAL = 0.02
+local SPAM_INTERVAL = 0.018
 local DROP_HEIGHT = 50000
 local DROP_SPEED = -100000
 local IMPACT_POWER = 10
