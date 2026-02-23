@@ -18,8 +18,8 @@ if not getgenv().KickGrabFastRunning then
     -- 별도 스레드에서 루프 실행
     task.spawn(function()
         while getgenv().KickGrabFastRunning do
-            -- 0.016초 대기 (요청하신 실행 주기)
-            task.wait(0.016)
+            -- 0.015초 대기 (요청하신 실행 주기)
+            task.wait(0.015)
 
             local myCharacter = localPlayer.Character
             if not myCharacter then continue end
