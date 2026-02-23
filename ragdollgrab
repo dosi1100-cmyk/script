@@ -272,3 +272,18 @@ StarterGui:SetCore("SendNotification", {
     Text = "Pallet Attack v1.4 : ON",
     Duration = 3
 })
+
+local StarterGui = game:GetService("StarterGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+getgenv().LoopGrabRunning = false
+getgenv().CurrentGrabbedTarget = nil
+getgenv().IsRespawning = false
+
+if getgenv().LoopGrabConnection then
+    getgenv().LoopGrabConnection:Disconnect()
+    getgenv().LoopGrabConnection = nil
+end
+
+getgenv().CurrentPalletModel = nil
+getgenv().CurrentPalletPart = nil
