@@ -1,0 +1,60 @@
+-- Version: v1.2
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+-- 이전 연결이 있다면 정리 (중복 실행 방지)
+if _G.ChamsConnections then
+    for _, conn in pairs(_G.ChamsConnections) do
+        conn:Disconnect()
+    end
+end
+_G.ChamsConnections = {}
+
+-- 개별 캐릭터에 ESP 적용 함수
+local function applyChams(player, character)
+    if not character then return end
+    
+    -- 이미 적용되어 있는지 확인
+    if not character:FindFirstChild("ChamsESP_Highlight") then
+        local highlight = Instance.new("Highlight")
+        highlight.Name = "ChamsESP_Highlight"
+        
+        -- 팀 체크: 아군은 초록색, 적군(또는 팀이 없는 경우)은 빨간색
+        if player.Team ~= nil and LocalPlayer.Team ~= nil and player.Team == LocalPlayer.Team then
+            highlight.FillColor = Color3.fromRGB(0, 255, 0) -- 초록색 (아군)
+        else
+            highlight.FillColor = Color3.fromRGB(255, 0, 0) -- 빨간색 (적군)
+        end
+        
+        highlight.OutlineColor = Color3.fromRGB(255, 255, 255) -- 흰색 테두리
+        highlight.FillTransparency = 0.5
+        highlight.OutlineTransparency = 0
+        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop -- 벽 너머로 보이게 하는 핵심 속성
+        highlight.Parent = character
+    end
+end
+
+-- 플레이어 처리 및 리스폰 감지 함수
+local function handlePlayer(player)
+    if player == LocalPlayer then return end -- 본인 제외
+    
+    if player.Character then
+        applyChams(player, player.Character)
+    end
+    
+    local conn = player.CharacterAdded:Connect(function(char)
+        task.wait(0.5) -- 캐릭터가 완전히 로드될 때까지 대기
+        applyChams(player, char)
+    end)
+    table.insert(_G.ChamsConnections, conn)
+end
+
+-- 현재 접속 중인 플레이어 적용
+for _, player in pairs(Players:GetPlayers()) do
+    handlePlayer(player)
+end
+
+-- 새로 들어오는 플레이어 감지
+local joinConn = Players.PlayerAdded:Connect(handlePlayer)
+table.insert(_G.ChamsConnections, joinConn)
