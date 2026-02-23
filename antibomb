@@ -195,7 +195,7 @@ task.spawn(function()
                 end
             else
                 -- [버그 수정] targetCFrame을 찾지 못했을 때 무한 루프(화면 멈춤)를 방지하기 위한 대기 추가
-                task.wait()
+                task.wait(0.1)
             end
         else
             -- [대기]
