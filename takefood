@@ -86,12 +86,10 @@ local function AntiBananaF()
             processedItems[item] = true
 
             task.spawn(function()
-                -- 아이템이 존재하고 기능이 켜져 있는 동안 0.05초 간격으로 빠르게 호출
                 while item and item.Parent and getgenv().AntiHoldPartRunning do
                     local char = plr.Character
                     if not char then break end
 
-                    -- 서버 응답 대기 없이 병렬로 계속 전송
                     task.spawn(function()
                         pcall(function()
                             holdRemote:InvokeServer(item, char)
@@ -99,7 +97,7 @@ local function AntiBananaF()
                         end)
                     end)
 
-                    task.wait(0.03)
+                    task.wait(0.02)
                 end
                 
                 -- 아이템이 사라지면 처리 목록에서 제거
