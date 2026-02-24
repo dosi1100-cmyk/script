@@ -1,0 +1,140 @@
+if getgenv().AntiHoldPartRunning then
+    warn("이미 Anti-Hold Part 기능이 실행 중입니다.")
+    return
+end
+
+getgenv().AntiHoldPartRunning = true
+print("Anti-Hold Part 켜짐")
+
+local function AntiBananaF()
+    local dropPos = CFrame.new(0, -999999999, 0)
+    local dropVec = Vector3.new(0, -999999999, 0)
+    local plr = game.Players.LocalPlayer
+
+    local targetItemsDict = {
+        ["CupMugWhite"] = true, ["CupMugBrown"] = true, ["FoodBanana"] = true, 
+        ["FoodBread"] = true, ["FoodBroccoli"] = true, ["FoodCakePink"] = true, 
+        ["FoodCoconut"] = true, ["FoodDippyEgg"] = true, ["FoodDonut"] = true, 
+        ["FoodFrenchFries"] = true, ["FoodHamburger"] = true, ["FoodHotdog"] = true, 
+        ["FoodMayonnaise"] = true, ["FoodMeatStick"] = true, ["FoodMushroomPoison"] = true, 
+        ["FoodPizzaCheese"] = true, ["FoodPizzaPepperoni"] = true, ["FoodSodaCan"] = true, 
+        ["PoopPile"] = true, ["PoopPileSparkle"] = true, ["InstrumentBrassBugle"] = true, 
+        ["InstrumentBrassTrumpet"] = true, ["InstrumentDrumBongos"] = true, 
+        ["InstrumentDrumSnare"] = true, ["InstrumentGuitarAcoustic"] = true, 
+        ["InstrumentGuitarBanjo"] = true, ["InstrumentGuitarLyre"] = true, 
+        ["InstrumentGuitarUkulele"] = true, ["InstrumentGuitarViolin"] = true, 
+        ["InstrumentPianoKeyboard"] = true, ["InstrumentPianoMelodica"] = true, 
+        ["InstrumentVoiceMicrophone"] = true, ["InstrumentWoodwindOcarina"] = true, 
+        ["InstrumentWoodwindSaxophone"] = true, ["InstrumentBrassVuvuzela"] = true
+    }
+
+    local processedItems = {} 
+
+    local function GetMyPlotNumber()
+        local plots = workspace:FindFirstChild("Plots")
+        if not plots then return nil end
+
+        for i = 1, 5 do
+            local plot = plots:FindFirstChild("Plot" .. i)
+            if plot then
+                local plotSign = plot:FindFirstChild("PlotSign")
+                if plotSign then
+                    local owners = plotSign:FindFirstChild("ThisPlotsOwners")
+                    if owners then
+                        local ownerVal = owners:FindFirstChildOfClass("StringValue")
+                        if ownerVal and ownerVal.Value == plr.Name then
+                            return i
+                        end
+                    end
+                end
+            end
+        end
+        return nil
+    end
+
+    local function ProcessItem(item)
+        if not item or not item.Parent then return end
+        if processedItems[item] then return end
+
+        local holdPart = item:FindFirstChild("HoldPart")
+        if not holdPart then return end
+
+        local holdRemote = holdPart:FindFirstChild("HoldItemRemoteFunction")
+        local dropRemote = holdPart:FindFirstChild("DropItemRemoteFunction")
+
+        if holdRemote and dropRemote then
+            processedItems[item] = true
+
+            task.spawn(function()
+                local char = plr.Character
+                if not char then 
+                    processedItems[item] = nil 
+                    return 
+                end
+
+                local success, err = pcall(function()
+                    holdRemote:InvokeServer(item, char)
+                    dropRemote:InvokeServer(item, dropPos, dropVec)
+                end)
+
+                if not success or item.Parent then
+                    task.wait(1)
+                    if item.Parent then
+                        processedItems[item] = nil
+                    end
+                end
+            end)
+        end
+    end
+
+    while getgenv().AntiHoldPartRunning do
+        task.wait()
+
+        local char = plr.Character
+        if not char or not char.Parent then continue end
+
+        local myPlotNumber = GetMyPlotNumber()
+        local itemsToProcess = {}
+
+        for _, player in ipairs(game.Players:GetPlayers()) do
+            if player == plr then continue end
+
+            local folder = workspace:FindFirstChild(player.Name .. "SpawnedInToys")
+            if folder then
+                for _, item in ipairs(folder:GetChildren()) do
+                    if targetItemsDict[item.Name] then
+                        table.insert(itemsToProcess, item)
+                    end
+                end
+            end
+        end
+
+        local plotItems = workspace:FindFirstChild("PlotItems")
+        if plotItems then
+            for i = 1, 5 do
+                if i == myPlotNumber then continue end
+                local plot = plotItems:FindFirstChild("Plot" .. i)
+                if plot then
+                    for _, item in ipairs(plot:GetChildren()) do
+                        if targetItemsDict[item.Name] then
+                            table.insert(itemsToProcess, item)
+                        end
+                    end
+                end
+            end
+        end
+
+        for _, item in ipairs(itemsToProcess) do
+            if not getgenv().AntiHoldPartRunning then break end
+            ProcessItem(item)
+        end
+
+        for item, _ in pairs(processedItems) do
+            if not item.Parent then
+                processedItems[item] = nil
+            end
+        end
+    end
+end
+
+task.spawn(AntiBananaF)
