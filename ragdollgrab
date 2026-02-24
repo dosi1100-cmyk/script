@@ -1,4 +1,4 @@
--- v1.4
+-- v1.6
 local StarterGui = game:GetService("StarterGui")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -39,10 +39,11 @@ for _, funcName in ipairs(requiredFunctions) do
     end
 end
 
--- [상태 활성화]
+-- [상태 활성화 및 초기화]
 getgenv().PalletAttackRunning = true
 getgenv().IsRespawning = false
 getgenv().LastSpamTime = 0
+getgenv().PalletAttackTarget = nil -- 확실한 초기화
 
 -- ==========================================
 -- [설정 및 변수]
@@ -152,8 +153,21 @@ local function SpawnPallet()
     getgenv().IsRespawning = false
 end
 
+-- [사람/NPC 엄격 판별 함수]
+local function isHumanCharacter(part)
+    local current = part
+    -- 부모를 계속 따라 올라가며 Humanoid가 있는지 검사
+    while current and current ~= game and current ~= Workspace do
+        if current:FindFirstChildOfClass("Humanoid") then
+            return true
+        end
+        current = current.Parent
+    end
+    return false
+end
+
 -- ==========================================
--- [훅 시스템 - 잡기 감지]
+-- [훅 시스템 - 잡기 감지 (NPC 및 유저 대상 체크 매우 강화)]
 -- ==========================================
 if not getgenv().PalletAttackHookInstalled then
     getgenv().PalletAttackHookInstalled = true
@@ -167,10 +181,16 @@ if not getgenv().PalletAttackHookInstalled then
         if method == "FireServer" then
             if self == setNetworkOwnerRemote then
                 if not checkcaller() then
-                    local targetPart = ({...})[1]
+                    local args = {...}
+                    local targetPart = args[1]
                     if typeof(targetPart) == "Instance" and targetPart:IsA("BasePart") then
                         if targetPart ~= getgenv().CurrentPalletPart then
-                            getgenv().PalletAttackTarget = targetPart
+                            -- 방금 잡은 물체가 사람이나 NPC 모델의 일부인지 확인
+                            if isHumanCharacter(targetPart) then
+                                getgenv().PalletAttackTarget = targetPart
+                            else
+                                getgenv().PalletAttackTarget = nil -- 일반 물건이면 무조건 무시
+                            end
                         end
                     end
                 end
@@ -198,6 +218,7 @@ getgenv().PalletAttackConnection = RunService.Heartbeat:Connect(function()
     local palletPart = getgenv().CurrentPalletPart
     local palletModel = getgenv().CurrentPalletModel
 
+    -- 타겟이 있을 때만 셋오너 스팸 작동 (일반 물건은 grabbedTarget이 nil이므로 작동 안함)
     if grabbedTarget and grabbedTarget.Parent then
         if now - getgenv().LastSpamTime >= SPAM_INTERVAL then
             pcall(function()
@@ -210,6 +231,7 @@ getgenv().PalletAttackConnection = RunService.Heartbeat:Connect(function()
     if palletModel and palletModel.Parent and palletPart and palletPart.Parent then
         local targetPos = nil
         
+        -- 타겟이 사람/NPC로 확정되어 있을 때만 위치 추적
         if grabbedTarget and grabbedTarget.Parent then
             local model = grabbedTarget.Parent
             if model and not model:FindFirstChild("Humanoid") then
@@ -228,6 +250,7 @@ getgenv().PalletAttackConnection = RunService.Heartbeat:Connect(function()
             end
         end
 
+        -- 타겟 위치가 정상적으로 잡혔을 때만 판자 공격 진행
         if targetPos then
             local startPos = targetPos + Vector3.new(0, DROP_HEIGHT, 0)
             local endPos = targetPos
@@ -252,6 +275,7 @@ getgenv().PalletAttackConnection = RunService.Heartbeat:Connect(function()
                 hammerGoingDown = true
             end
         else
+            -- 타겟이 없거나 일반 물건일 경우 판자는 상공 대기
             palletPart.CFrame = CFrame.new(0, DROP_HEIGHT, 0)
             palletPart.AssemblyLinearVelocity = Vector3.zero
             palletPart.AssemblyAngularVelocity = Vector3.zero
@@ -269,6 +293,6 @@ task.spawn(SpawnPallet)
 
 StarterGui:SetCore("SendNotification", {
     Title = "System",
-    Text = "Pallet Attack v1.4 : ON",
+    Text = "Pallet Attack v1.6 : ON",
     Duration = 3
 })
