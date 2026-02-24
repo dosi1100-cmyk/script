@@ -1,9 +1,7 @@
 local StarterGui = game:GetService("StarterGui")
 
 if getgenv().AntiHoldPartRunning then
-    warn("이미 Anti-Hold Part 기능이 실행 중입니다.")
     
-    -- 이미 켜져있을 때 안내 알림
     pcall(function()
         StarterGui:SetCore("SendNotification", {
             Title = "[ ⚠️ 안내 ]",
