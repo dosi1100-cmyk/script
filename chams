@@ -44,7 +44,7 @@ local function handlePlayer(player)
     end
     
     local conn = player.CharacterAdded:Connect(function(char)
-        task.wait(0.5) -- 캐릭터가 완전히 로드될 때까지 대기
+        task.wait(0.3) -- 캐릭터가 완전히 로드될 때까지 대기
         applyChams(player, char)
     end)
     table.insert(_G.ChamsConnections, conn)
