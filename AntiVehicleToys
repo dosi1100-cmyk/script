@@ -1,4 +1,3 @@
--- Anti-Vehicle Toy ON v1.2
 if getgenv().AntiVehicleToyEnabled then
     game:GetService("StarterGui"):SetCore("SendNotification", {
         Title = "Anti-Vehicle Toy";
@@ -19,14 +18,11 @@ local Players = game:GetService("Players")
 local plr = Players.LocalPlayer
 local workspace = game:GetService("Workspace")
 
--- 화이트리스트 설정 (필요시 이름 추가, 예: {"Friend1", "Friend2"})
-local Whitelist = {"mirimirimirihyuk"} 
+local Whitelist = {} 
 local WhiteListMode = false 
 
 task.spawn(function()
-    local FallenY = workspace.FallenPartsDestroyHeight
-    local targetY = (FallenY <= -50000 and -49999) or (FallenY <= -100 and -99) or -100
-    local dropPos = CFrame.new(0, targetY, 9999)
+    local dropPos = CFrame.new(0, -9999999, 9999)
     local targetItems = {"CreatureBlobman", "TractorRed", "TractorOrange", "TractorGreen", "SantaSleigh"}
 
     local processedBlobs = {}
@@ -41,7 +37,6 @@ task.spawn(function()
 
         if not char or not root or not hum then continue end
 
-        -- 내 플롯 번호 찾기
         local myPlotNumber = nil
         local plots = workspace:FindFirstChild("Plots")
         if plots then
@@ -57,7 +52,6 @@ task.spawn(function()
             end
         end
 
-        -- 아이템 수집 함수
         local function collectItemsFromFolder(folder)
             local items = {}
             for _, item in ipairs(folder:GetChildren()) do
@@ -81,7 +75,6 @@ task.spawn(function()
             return items
         end
 
-        -- 모든 아이템 검색
         local allItems = {}
         for _, player in ipairs(Players:GetPlayers()) do
             if player == plr then continue end
@@ -116,7 +109,6 @@ task.spawn(function()
             end
         end
 
-        -- 처리 로직
         for _, item in ipairs(allItems) do
             if not getgenv().AntiVehicleToyEnabled then break end
 
@@ -139,7 +131,6 @@ task.spawn(function()
                     continue 
                 end
 
-                -- 앵커 후 탑승 시도
                 root.Anchored = true
                 vs:Sit(hum)
 
@@ -147,12 +138,10 @@ task.spawn(function()
                     task.wait(0.15)
                     hum:ChangeState(Enum.HumanoidStateType.Running)
                     task.wait()
-                    -- 보이드로 이동
                     if item.PrimaryPart then item:SetPrimaryPartCFrame(dropPos) end
                     
-                    -- 돌아와서 관성 제거
                     root.Anchored = true
-                    task.wait(0.02)
+                    task.wait(0.03)
                     root.Anchored = false
 
                     if root and vs then
