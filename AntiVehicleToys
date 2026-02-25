@@ -22,7 +22,9 @@ local Whitelist = {}
 local WhiteListMode = false 
 
 task.spawn(function()
-    local dropPos = CFrame.new(0, -9999999, 9999)
+    local FallenY = workspace.FallenPartsDestroyHeight
+    local targetY = (FallenY <= -50000 and -49999) or (FallenY <= -100 and -99) or -100
+    local dropPos = CFrame.new(0, targetY, 9999)
     local targetItems = {"CreatureBlobman", "TractorRed", "TractorOrange", "TractorGreen", "SantaSleigh"}
 
     local processedBlobs = {}
