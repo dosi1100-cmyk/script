@@ -1,3 +1,4 @@
+-- Anti-Vehicle Toy ON v1.4
 if getgenv().AntiVehicleToyEnabled then
     game:GetService("StarterGui"):SetCore("SendNotification", {
         Title = "Anti-Vehicle Toy";
