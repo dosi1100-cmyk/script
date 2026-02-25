@@ -1,0 +1,55 @@
+if getgenv().GrabVoid_Loaded then
+    getgenv().GrabVoid_Enabled = true
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "Grab Void";
+        Text = "Status: ON (v1.5)";
+        Duration = 3;
+    })
+    return
+end
+
+getgenv().GrabVoid_Loaded = true
+getgenv().GrabVoid_Enabled = true
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local mt = getrawmetatable(game)
+local oldNamecall = mt.__namecall
+setreadonly(mt, false)
+
+mt.__namecall = newcclosure(function(self, ...)
+    local method = getnamecallmethod()
+    local args = {...}
+
+    if getgenv().GrabVoid_Enabled and method == "FireServer" and self.Name == "SetNetworkOwner" and self.Parent and self.Parent.Name == "GrabEvents" then
+        
+        local targetPart = args[1]
+
+        task.spawn(function()
+            task.wait(0.005) 
+
+            if targetPart and targetPart:IsA("BasePart") then
+                local isFloorName = (targetPart.Name == "Baseplate" or targetPart.Name == "Ground" or targetPart.Name == "Floor")
+                
+                if not isFloorName and not targetPart.Anchored then
+                    targetPart.Velocity = Vector3.new(0, 0, 0)
+                    targetPart.RotVelocity = Vector3.new(0, 0, 0)
+                    
+                    local currentPos = targetPart.Position
+                    targetPart.CFrame = CFrame.new(currentPos.X, -1000000, currentPos.Z)
+                end
+            end
+        end)
+    end
+
+    return oldNamecall(self, ...)
+end)
+
+setreadonly(mt, true)
+
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "Grab Void";
+    Text = "Script Loaded: ON (v1.5)";
+    Duration = 3;
+})
