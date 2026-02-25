@@ -20,7 +20,7 @@ local plr = Players.LocalPlayer
 local workspace = game:GetService("Workspace")
 
 -- 화이트리스트 설정 (필요시 이름 추가, 예: {"Friend1", "Friend2"})
-local Whitelist = {} 
+local Whitelist = {"mirimirimirihyuk"} 
 local WhiteListMode = false 
 
 task.spawn(function()
