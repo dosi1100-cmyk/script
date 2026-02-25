@@ -97,7 +97,7 @@ local function AntiBananaF()
                         end)
                     end)
 
-                    task.wait(0.02)
+                    task.wait(0.05)
                 end
                 
                 -- 아이템이 사라지면 처리 목록에서 제거
