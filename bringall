@@ -7,7 +7,7 @@ local LocalPlayer = Players.LocalPlayer
 local function sendNotification(text)
     pcall(function()
         StarterGui:SetCore("SendNotification", {
-            Title = "자동 수집기",
+            Title = "✅ 자동 수집기 켜짐",
             Text = text,
             Duration = 5
         })
@@ -16,7 +16,7 @@ end
 
 -- 중복 실행 방지
 if _G.ToyGrabberRunning then
-    sendNotification("이미 자동 수집기가 실행 중입니다. (v2.0)")
+    sendNotification("⚠️ 이미 자동 수집기가 실행 중입니다. (v2.0)")
     return
 end
 
@@ -24,7 +24,7 @@ end
 _G.ToyGrabberRunning = true
 _G.ToyGrabberConnections = {}
 _G.ModifiedParts = {} -- 새로 실행할 때 초기화
-sendNotification("스크립트가 실행되었습니다. (v2.0)")
+sendNotification("✅ 스크립트가 실행되었습니다. (v2.0)")
 
 -- 목표 아이템 리스트 세팅
 local targetItems = {
