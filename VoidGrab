@@ -1,4 +1,4 @@
-if getgenv().LoopGrabActive then
+if getgenv().VoidGrabActive then
     game.StarterGui:SetCore("SendNotification", {
         Title = "Void Grab",
         Text = "이미 켜져있습니다!",
@@ -8,7 +8,7 @@ if getgenv().LoopGrabActive then
 end
 
 -- 켜짐 상태로 변경 및 알림
-getgenv().LoopGrabActive = true
+getgenv().VoidGrabActive = true
 game.StarterGui:SetCore("SendNotification", {
     Title = "Void Grab",
     Text = "bozi Grab이 켜졌습니다.",
@@ -20,7 +20,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local plr = Players.LocalPlayer
 
 task.spawn(function()
-    while getgenv().LoopGrabActive do
+    while getgenv().VoidGrabActive do
         local grabParts = workspace:FindFirstChild("GrabParts")
         if not grabParts then
             task.wait()
