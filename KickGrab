@@ -8,7 +8,7 @@ if not getgenv().KickGrabFastRunning then
     getgenv().KickGrabFastRunning = true
 
     StarterGui:SetCore("SendNotification", {
-        Title = "Kick Grab (Fast v1.3)",
+        Title = "[ ✅Kick Grab (Fast v1.3) ]",
         Text = "초고속 반응 모드로 실행되었습니다. [ON]",
         Duration = 3
     })
@@ -65,7 +65,7 @@ if not getgenv().KickGrabFastRunning then
 else
     -- 이미 켜져 있을 경우 알림
     StarterGui:SetCore("SendNotification", {
-        Title = "Kick Grab (Fast v1.3)",
+        Title = "[ ⚠️Kick Grab (Fast v1.3) ]",
         Text = "이미 실행 중입니다.",
         Duration = 3
     })
