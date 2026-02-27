@@ -13,7 +13,7 @@ local LocalPlayer = Players.LocalPlayer
 if getgenv().LoopGrabRunning then
     warn("[System] Loop Grab is already running!")
     StarterGui:SetCore("SendNotification", {
-        Title = "System",
+        Title = "[ ⚠️LoopGrab ]",
         Text = "이미 룹그랩이 켜져 있습니다!",
         Duration = 3
     })
@@ -35,7 +35,7 @@ for _, funcName in ipairs(requiredFunctions) do
         warn("[System] 호환성 테스트 실패! 없는 함수: " .. funcName)
         StarterGui:SetCore("SendNotification", {
             Title = "System Error",
-            Text = "이 실행기는 스크립트를 지원하지 않습니다.",
+            Text = "⚠️ 이 실행기는 스크립트를 지원하지 않습니다.",
             Duration = 5,
         })
         return
@@ -115,7 +115,7 @@ getgenv().LoopGrabConnection = RunService.Heartbeat:Connect(function()
 end)
 
 StarterGui:SetCore("SendNotification", {
-    Title = "System",
+    Title = "[ ✅ LoopGrab On ]",
     Text = "Loop Grab v5.7 : ON",
     Duration = 3
 })
