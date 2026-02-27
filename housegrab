@@ -9,7 +9,7 @@ local plr = Players.LocalPlayer
 -- 이미 실행 중인지 확인
 if getgenv().HouseGrabConnection then
     StarterGui:SetCore("SendNotification", {
-        Title = "House Grab",
+        Title = "⚠️ House Grab",
         Text = "이미 실행 중입니다!",
         Duration = 3
     })
@@ -82,7 +82,7 @@ getgenv().HouseGrabConnection = UserInputService.InputBegan:Connect(function(inp
 end)
 
 StarterGui:SetCore("SendNotification", {
-    Title = "House Grab",
+    Title = "✅ House Grab",
     Text = "스크립트가 켜졌습니다. 작동키 G",
     Duration = 3
 })
