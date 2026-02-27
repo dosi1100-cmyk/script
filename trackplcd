@@ -1,0 +1,150 @@
+-- Version: v1.7
+-- [켜기 스크립트]
+if _G.PCLD_Tracker_Running then
+    return -- 이미 실행 중이면 중복 실행 방지
+end
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+
+local guiName = "PCLD_TrackerInfoGui"
+
+_G.PCLD_Tracker_Running = true
+_G.PCLD_TimeTracking = {} 
+_G.PCLD_CachedDetectors = {}
+
+-- 1. 스크립트 실행 시점에 존재하는 기존 PCLD 탐색
+for _, obj in ipairs(Workspace:GetDescendants()) do
+    if obj.Name == "PlayerCharacterLocationDetector" and obj:IsA("BasePart") then
+        _G.PCLD_CachedDetectors[obj] = true
+    end
+end
+
+-- 2. 도중에 새로 생성되는 PCLD 감지
+_G.PCLD_AddedConn = Workspace.DescendantAdded:Connect(function(obj)
+    if obj.Name == "PlayerCharacterLocationDetector" and obj:IsA("BasePart") then
+        _G.PCLD_CachedDetectors[obj] = true
+    end
+end)
+
+-- 3. 도중에 삭제되는 PCLD 감지
+_G.PCLD_RemConn = Workspace.DescendantRemoving:Connect(function(obj)
+    if _G.PCLD_CachedDetectors and _G.PCLD_CachedDetectors[obj] then
+        _G.PCLD_CachedDetectors[obj] = nil
+        if _G.PCLD_TimeTracking and _G.PCLD_TimeTracking[obj] then
+            _G.PCLD_TimeTracking[obj] = nil
+        end
+    end
+end)
+
+-- 지속적으로 감지기와 누적 시간을 업데이트하는 함수
+local function updateDetectors()
+    local activePlayers = {}
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Character then
+            local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                table.insert(activePlayers, {
+                    name = player.Name,
+                    disp = player.DisplayName,
+                    pos = hrp.Position
+                })
+            end
+        end
+    end
+    
+    for detector, _ in pairs(_G.PCLD_CachedDetectors) do
+        if not detector.Parent then continue end 
+        
+        if not _G.PCLD_TimeTracking[detector] then
+            _G.PCLD_TimeTracking[detector] = {}
+        end
+        
+        local closestPlayerName = nil
+        local closestPlayerDisp = nil
+        local shortestDistance = math.huge
+        
+        for _, pData in ipairs(activePlayers) do
+            local distance = (detector.Position - pData.pos).Magnitude
+            if distance < shortestDistance then
+                shortestDistance = distance
+                closestPlayerName = pData.name
+                closestPlayerDisp = pData.disp
+            end
+        end
+        
+        if closestPlayerName then
+            if not _G.PCLD_TimeTracking[detector][closestPlayerName] then
+                _G.PCLD_TimeTracking[detector][closestPlayerName] = { time = 0, disp = closestPlayerDisp }
+            end
+            _G.PCLD_TimeTracking[detector][closestPlayerName].time = _G.PCLD_TimeTracking[detector][closestPlayerName].time + 0.1
+        end
+        
+        local maxTime = -1
+        local targetName = nil
+        local targetDisp = nil
+        
+        for pName, data in pairs(_G.PCLD_TimeTracking[detector]) do
+            if data.time > maxTime then
+                maxTime = data.time
+                targetName = pName
+                targetDisp = data.disp
+            end
+        end
+        
+        if targetName then
+            local gui = detector:FindFirstChild(guiName)
+            if not gui then
+                gui = Instance.new("BillboardGui")
+                gui.Name = guiName
+                gui.Size = UDim2.new(5, 0, 1.5, 0) 
+                gui.StudsOffset = Vector3.new(0, 0, 0)
+                gui.AlwaysOnTop = false
+                
+                local displayLabel = Instance.new("TextLabel")
+                displayLabel.Name = "DisplayNameLabel"
+                displayLabel.Size = UDim2.new(1, 0, 0.5, 0)
+                displayLabel.Position = UDim2.new(0, 0, 0, 0)
+                displayLabel.BackgroundTransparency = 1
+                displayLabel.TextColor3 = Color3.new(1, 1, 1)
+                displayLabel.TextStrokeTransparency = 0
+                displayLabel.TextScaled = true
+                displayLabel.Font = Enum.Font.GothamBold
+                displayLabel.Parent = gui
+                
+                local nameLabel = Instance.new("TextLabel")
+                nameLabel.Name = "NameLabel"
+                nameLabel.Size = UDim2.new(1, 0, 0.4, 0)
+                nameLabel.Position = UDim2.new(0, 0, 0.5, 0)
+                nameLabel.BackgroundTransparency = 1
+                nameLabel.TextColor3 = Color3.new(1, 1, 1)
+                nameLabel.TextStrokeTransparency = 0
+                nameLabel.TextScaled = true
+                nameLabel.Font = Enum.Font.Gotham
+                nameLabel.Parent = gui
+                
+                gui.Parent = detector
+            end
+            
+            local displayLabel = gui:FindFirstChild("DisplayNameLabel")
+            local nameLabel = gui:FindFirstChild("NameLabel")
+            
+            if displayLabel and nameLabel then
+                if displayLabel.Text ~= targetDisp then
+                    displayLabel.Text = targetDisp
+                end
+                if nameLabel.Text ~= targetName then
+                    nameLabel.Text = targetName
+                end
+            end
+        end
+    end
+end
+
+-- 0.1초마다 지속적으로 업데이트 실행
+task.spawn(function()
+    while _G.PCLD_Tracker_Running do
+        updateDetectors()
+        task.wait(0.1)
+    end
+end)
