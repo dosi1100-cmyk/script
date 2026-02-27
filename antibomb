@@ -64,7 +64,7 @@ local myToyFolder = Workspace:WaitForChild(myToyFolderName)
 local myOven = myToyFolder:WaitForChild("OvenDarkGray", 5)
 
 if not myOven then
-    warn("오븐을 찾을 수 없습니다.")
+    warn("⚠️ 오븐을 찾을 수 없습니다.")
     -- 실패 시에도 원래 위치로 복귀 시도
     HumanoidRootPart.CFrame = OriginalCFrame
     getgenv().AntiBombToggle = false -- 실패했으므로 토글 상태 초기화
