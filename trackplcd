@@ -80,7 +80,7 @@ local function updateDetectors()
             _G.PCLD_TimeTracking[detector][closestPlayerName].time = _G.PCLD_TimeTracking[detector][closestPlayerName].time + 0.1
         end
         
-        local maxTime = -1
+        local maxTime = -0.5
         local targetName = nil
         local targetDisp = nil
         
