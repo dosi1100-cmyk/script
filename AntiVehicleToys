@@ -1,7 +1,7 @@
 -- Anti-Vehicle Toy ON v1.4
 if getgenv().AntiVehicleToyEnabled then
     game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "Anti-Vehicle Toy";
+        Title = "[ ✅ Anti-Vehicle Toy ] ";
         Text = "Already Enabled (이미 켜져있음)";
         Duration = 3;
     })
@@ -10,7 +10,7 @@ end
 
 getgenv().AntiVehicleToyEnabled = true
 game:GetService("StarterGui"):SetCore("SendNotification", {
-    Title = "Anti-Vehicle Toy";
+    Title = "[ ⚠️ Anti-Vehicle Toy ]";
     Text = "Enabled (켜짐)";
     Duration = 3;
 })
