@@ -41,19 +41,22 @@ task.spawn(function()
             end
 
             while getgenv().LoopGrabActive and workspace:FindFirstChild("GrabParts") do
-                if ownerPlayer then
-                    local tgtTorso = ownerPlayer.Character and ownerPlayer.Character:FindFirstChild("HumanoidRootPart") 
-                    
-                    if tgtTorso then
-                        pcall(function()
-                            tgtTorso.CFrame = CFrame.new(tgtTorso.Position.X, -999999, tgtTorso.Position.Z)
-                        end)
-                    end
-                else
-                    if part1.Parent then
-                        pcall(function()
-                            part1.CFrame = CFrame.new(part1.Position.X, -999999, part1.Position.Z)
-                        end)
+                -- 파트가 앵커되어 있지 않을 때만 공허로 보내도록 조건 추가
+                if not part1.Anchored then
+                    if ownerPlayer then
+                        local tgtTorso = ownerPlayer.Character and ownerPlayer.Character:FindFirstChild("HumanoidRootPart") 
+                        
+                        if tgtTorso then
+                            pcall(function()
+                                tgtTorso.CFrame = CFrame.new(tgtTorso.Position.X, -999999, tgtTorso.Position.Z)
+                            end)
+                        end
+                    else
+                        if part1.Parent then
+                            pcall(function()
+                                part1.CFrame = CFrame.new(part1.Position.X, -999999, part1.Position.Z)
+                            end)
+                        end
                     end
                 end
                 task.wait()
