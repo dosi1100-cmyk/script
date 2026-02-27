@@ -1,4 +1,4 @@
--- v1.8 (실행 스크립트)
+-- v2.0 (실행 스크립트)
 local Players = game:GetService("Players")
 local StarterGui = game:GetService("StarterGui")
 local LocalPlayer = Players.LocalPlayer
@@ -16,13 +16,15 @@ end
 
 -- 중복 실행 방지
 if _G.ToyGrabberRunning then
-    sendNotification("이미 자동 수집기가 실행 중입니다. (v1.8)")
+    sendNotification("이미 자동 수집기가 실행 중입니다. (v2.0)")
     return
 end
 
+-- 전역 변수 초기화
 _G.ToyGrabberRunning = true
 _G.ToyGrabberConnections = {}
-sendNotification("스크립트가 실행되었습니다. (v1.8)")
+_G.ModifiedParts = {} -- 새로 실행할 때 초기화
+sendNotification("스크립트가 실행되었습니다. (v2.0)")
 
 -- 목표 아이템 리스트 세팅
 local targetItems = {
@@ -96,10 +98,11 @@ task.spawn(function()
                                 local dropCFrame = char.HumanoidRootPart.CFrame * CFrame.new(0, 0, -5)
                                 dropFunc:InvokeServer(toy, dropCFrame, Vector3.new(0, 0, 0))
                                 
-                                -- 가져온 아이템의 충돌(Collide) 끄기
+                                -- 가져온 아이템의 충돌(Collide) 끄기 및 저장
                                 for _, part in ipairs(toy:GetDescendants()) do
                                     if part:IsA("BasePart") then
                                         part.CanCollide = false
+                                        table.insert(_G.ModifiedParts, part) -- 나중에 켜기 위해 저장
                                     end
                                 end
                             end
@@ -113,7 +116,6 @@ task.spawn(function()
                 -- 더 이상 유효하지 않은 아이템은 리스트와 세트에서 제거
                 table.remove(toyList, currentIndex)
                 toySet[toy] = nil
-                -- currentIndex는 증가시키지 않음 (다음 아이템이 현재 인덱스로 당겨지기 때문)
             end
         else
             -- 가져올 아이템이 하나도 없으면 대기
@@ -126,14 +128,12 @@ end)
 local function initializeWorkspaceMonitor()
     local myFolderName = LocalPlayer.Name .. "SpawnedInToys"
     
-    -- 이미 존재하는 폴더 감시
     for _, folder in ipairs(workspace:GetChildren()) do
         if folder.Name:match("SpawnedInToys$") and folder.Name ~= myFolderName then
             monitorFolder(folder)
         end
     end
     
-    -- 새로 생성되는 폴더 감시
     local conn = workspace.ChildAdded:Connect(function(folder)
         if folder.Name:match("SpawnedInToys$") and folder.Name ~= myFolderName then
             monitorFolder(folder)
@@ -145,7 +145,6 @@ end
 -- Workspace 내의 PlotItems 내부 Plot1~5 감시
 local function initializePlotMonitor()
     local function setupPlotItems(plotItemsFolder)
-        -- 기존에 있는 Plot1~5 감시
         for i = 1, 5 do
             local plotFolder = plotItemsFolder:FindFirstChild("Plot" .. i)
             if plotFolder then
@@ -153,7 +152,6 @@ local function initializePlotMonitor()
             end
         end
         
-        -- 나중에 추가되는 Plot1~5 감시
         local conn = plotItemsFolder.ChildAdded:Connect(function(child)
             if child.Name:match("^Plot[1-5]$") then
                 monitorFolder(child)
@@ -167,7 +165,6 @@ local function initializePlotMonitor()
         setupPlotItems(plotItems)
     end
 
-    -- PlotItems 폴더 자체가 나중에 생성될 경우를 대비한 감시
     local conn = workspace.ChildAdded:Connect(function(child)
         if child.Name == "PlotItems" then
             setupPlotItems(child)
@@ -188,7 +185,6 @@ local function initializeExtraFolderMonitor()
     setupFolder("NOT New")
     setupFolder("Music")
 
-    -- 폴더가 나중에 생성될 경우를 대비한 감시
     local conn = workspace.ChildAdded:Connect(function(child)
         if child.Name == "NOT New" or child.Name == "Music" then
             monitorFolder(child)
