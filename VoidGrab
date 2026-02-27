@@ -1,7 +1,7 @@
 if getgenv().GrabVoid_Loaded then
     getgenv().GrabVoid_Enabled = true
     game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "Void Grab";
+        Title = "[ ✅ Void Grab ]";
         Text = "Status: ON (v1.5)";
         Duration = 3;
     })
@@ -49,7 +49,7 @@ end)
 setreadonly(mt, true)
 
 game:GetService("StarterGui"):SetCore("SendNotification", {
-    Title = "Grab Void";
+    Title = "[ ✅Grab Void ]";
     Text = "Script Loaded: ON (v1.5)";
     Duration = 3;
 })
