@@ -1,55 +1,64 @@
-if getgenv().GrabVoid_Loaded then
-    getgenv().GrabVoid_Enabled = true
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "[ ✅ Void Grab ]";
-        Text = "Status: ON (v1.5)";
-        Duration = 3;
+if getgenv().LoopGrabActive then
+    game.StarterGui:SetCore("SendNotification", {
+        Title = "Void Grab",
+        Text = "이미 켜져있습니다!",
+        Duration = 3
     })
-    return
+    return -- 이미 켜져있으므로 아래 코드는 무시하고 종료
 end
 
-getgenv().GrabVoid_Loaded = true
-getgenv().GrabVoid_Enabled = true
+-- 켜짐 상태로 변경 및 알림
+getgenv().LoopGrabActive = true
+game.StarterGui:SetCore("SendNotification", {
+    Title = "Void Grab",
+    Text = "bozi Grab이 켜졌습니다.",
+    Duration = 3
+})
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local plr = Players.LocalPlayer
 
-local mt = getrawmetatable(game)
-local oldNamecall = mt.__namecall
-setreadonly(mt, false)
+task.spawn(function()
+    while getgenv().LoopGrabActive do
+        local grabParts = workspace:FindFirstChild("GrabParts")
+        if not grabParts then
+            task.wait()
+            continue
+        end
 
-mt.__namecall = newcclosure(function(self, ...)
-    local method = getnamecallmethod()
-    local args = {...}
+        local gp = grabParts:FindFirstChild("GrabPart")
+        local weld = gp and gp:FindFirstChildOfClass("WeldConstraint")
+        local part1 = weld and weld.Part1
 
-    if getgenv().GrabVoid_Enabled and method == "FireServer" and self.Name == "SetNetworkOwner" and self.Parent and self.Parent.Name == "GrabEvents" then
-        
-        local targetPart = args[1]
-
-        task.spawn(function()
-            task.wait(0.005) 
-
-            if targetPart and targetPart:IsA("BasePart") then
-                local isFloorName = (targetPart.Name == "Baseplate" or targetPart.Name == "Ground" or targetPart.Name == "Floor")
-                
-                if not isFloorName and not targetPart.Anchored then
-                    targetPart.Velocity = Vector3.new(0, 0, 0)
-                    targetPart.RotVelocity = Vector3.new(0, 0, 0)
-                    
-                    local currentPos = targetPart.Position
-                    targetPart.CFrame = CFrame.new(currentPos.X, -1000000, currentPos.Z)
+        if part1 then
+            local ownerPlayer = nil
+            for _, pl in ipairs(Players:GetPlayers()) do
+                if pl.Character and part1:IsDescendantOf(pl.Character) then
+                    ownerPlayer = pl
+                    break
                 end
             end
-        end)
+
+            while getgenv().LoopGrabActive and workspace:FindFirstChild("GrabParts") do
+                if ownerPlayer then
+                    local tgtTorso = ownerPlayer.Character and ownerPlayer.Character:FindFirstChild("HumanoidRootPart") 
+                    
+                    if tgtTorso then
+                        pcall(function()
+                            tgtTorso.CFrame = CFrame.new(tgtTorso.Position.X, -999999, tgtTorso.Position.Z)
+                        end)
+                    end
+                else
+                    if part1.Parent then
+                        pcall(function()
+                            part1.CFrame = CFrame.new(part1.Position.X, -999999, part1.Position.Z)
+                        end)
+                    end
+                end
+                task.wait()
+            end
+        end
+        task.wait()
     end
-
-    return oldNamecall(self, ...)
 end)
-
-setreadonly(mt, true)
-
-game:GetService("StarterGui"):SetCore("SendNotification", {
-    Title = "[ ✅Grab Void ]";
-    Text = "Script Loaded: ON (v1.5)";
-    Duration = 3;
-})
