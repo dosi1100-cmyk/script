@@ -10,7 +10,7 @@ local LocalPlayer = Players.LocalPlayer
 -- 이미 실행 중이면 중복 실행 방지
 if getgenv().PalletAttackRunning then
     StarterGui:SetCore("SendNotification", {
-        Title = "System",
+        Title = "[ ⚠️RagdollGrab ]",
         Text = "이미 실행 중입니다. 먼저 종료 스크립트를 사용해주세요.",
         Duration = 3
     })
@@ -32,7 +32,7 @@ for _, funcName in ipairs(requiredFunctions) do
         warn("[System] 호환성 테스트 실패! 없는 함수: " .. funcName)
         StarterGui:SetCore("SendNotification", {
             Title = "System Error",
-            Text = "이 실행기는 스크립트를 지원하지 않습니다.",
+            Text = "⚠️ 이 실행기는 스크립트를 지원하지 않습니다.",
             Duration = 5,
         })
         return
@@ -296,7 +296,7 @@ end)
 task.spawn(SpawnPallet)
 
 StarterGui:SetCore("SendNotification", {
-    Title = "System",
+    Title = "[ ✅Ragdoll Grab ]",
     Text = "Pallet Attack v1.5 : ON",
     Duration = 3
 })
