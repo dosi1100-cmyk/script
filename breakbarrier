@@ -14,8 +14,8 @@ end
 
 -- [ 알림 ] 기능 활성화 메시지
 StarterGui:SetCore("SendNotification", {
-    Title = "Ftap Script",
-    Text = "Plot5 Barrier Delete: [ ON ] (Key: L)",
+    Title = "[ ✅Breakbarreir ]",
+    Text = "Barrier Breaker: [ ON ] (Key: L)",
     Duration = 3
 })
 
