@@ -1,121 +1,71 @@
--- v5.7
-local StarterGui = game:GetService("StarterGui")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
-local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
-
-local LocalPlayer = Players.LocalPlayer
-
--- ==========================================
--- [중복 실행 방지 (Already Running Check)]
--- ==========================================
-if getgenv().LoopGrabRunning then
-    warn("[System] Loop Grab is already running!")
-    StarterGui:SetCore("SendNotification", {
-        Title = "[ ⚠️LoopGrab ]",
-        Text = "이미 룹그랩이 켜져 있습니다!",
+-- Version: v1.3
+if getgenv().LoopGrabActive then
+    game.StarterGui:SetCore("SendNotification", {
+        Title = "[ ⚠️Loop Grab ]",
+        Text = "이미 켜져있습니다!",
         Duration = 3
     })
-    return -- 이미 켜져있으면 여기서 스크립트 종료
-end
-
--- ==========================================
--- [0. 실행기 호환성 테스트]
--- ==========================================
-local requiredFunctions = {
-    "getgenv",
-    "hookmetamethod",
-    "checkcaller",
-    "getnamecallmethod"
-}
-
-for _, funcName in ipairs(requiredFunctions) do
-    if not getfenv()[funcName] then
-        warn("[System] 호환성 테스트 실패! 없는 함수: " .. funcName)
-        StarterGui:SetCore("SendNotification", {
-            Title = "System Error",
-            Text = "⚠️ 이 실행기는 스크립트를 지원하지 않습니다.",
-            Duration = 5,
-        })
-        return
-    end
-end
-
--- [상태 활성화]
-getgenv().LoopGrabRunning = true
-
--- ==========================================
--- [설정 및 변수]
--- ==========================================
-local SPAM_INTERVAL = 0.018
-
--- [리모트 찾기]
-local grabEvents = ReplicatedStorage:WaitForChild("GrabEvents", 5)
-local setNetworkOwnerRemote = grabEvents and grabEvents:WaitForChild("SetNetworkOwner")
-local destroyGrabLineRemote = grabEvents and grabEvents:WaitForChild("DestroyGrabLine")
-
-if not (setNetworkOwnerRemote and destroyGrabLineRemote) then
-    warn("[System] 필수 리모트를 찾지 못했습니다.")
-    -- 리모트 못 찾으면 실행 상태 다시 끔
-    getgenv().LoopGrabRunning = false
     return
 end
 
--- ==========================================
--- [훅 시스템]
--- ==========================================
-if not getgenv().LoopGrabHookInstalled then
-    getgenv().LoopGrabHookInstalled = true
-    local oldNamecall
-    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-        if not getgenv().LoopGrabRunning then
-            return oldNamecall(self, ...)
-        end
-
-        local method = getnamecallmethod()
-        if method == "FireServer" then
-            if self == setNetworkOwnerRemote then
-                if not checkcaller() then
-                    local targetPart = ({...})[1]
-                    if targetPart:IsA("BasePart") then
-                        getgenv().CurrentGrabbedTarget = targetPart
-                    end
-                end
-            elseif self == destroyGrabLineRemote then
-                if not checkcaller() then
-                    getgenv().CurrentGrabbedTarget = nil
-                end
-            end
-        end
-        return oldNamecall(self, ...)
-    end)
-end
-
--- ==========================================
--- [무한 루프 시작]
--- ==========================================
-local lastSpamTime = 0
-
-getgenv().LoopGrabConnection = RunService.Heartbeat:Connect(function()
-    if not getgenv().LoopGrabRunning then return end
-
-    local now = os.clock()
-    local grabbedTarget = getgenv().CurrentGrabbedTarget
-
-    -- [A] 룹그랩 유지
-    if grabbedTarget and grabbedTarget.Parent then
-        if now - lastSpamTime >= SPAM_INTERVAL then
-            pcall(function()
-                setNetworkOwnerRemote:FireServer(grabbedTarget, grabbedTarget.CFrame)
-            end)
-            lastSpamTime = now
-        end
-    end
-end)
-
-StarterGui:SetCore("SendNotification", {
-    Title = "[ ✅ LoopGrab On ]",
-    Text = "Loop Grab v5.7 : ON",
+-- 켜짐 상태로 변경 및 알림
+getgenv().LoopGrabActive = true
+game.StarterGui:SetCore("SendNotification", {
+    Title = "[ ✅Loop Grab ]",
+    Text = "Loop Grab이 켜졌습니다.",
     Duration = 3
 })
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local plr = Players.LocalPlayer
+local SetNetworkOwner = ReplicatedStorage:WaitForChild("GrabEvents"):WaitForChild("SetNetworkOwner")
+
+task.spawn(function()
+    while getgenv().LoopGrabActive do
+        local grabParts = workspace:FindFirstChild("GrabParts")
+        if not grabParts then
+            task.wait()
+            continue
+        end
+
+        local gp = grabParts:FindFirstChild("GrabPart")
+        local weld = gp and gp:FindFirstChildOfClass("WeldConstraint")
+        local part1 = weld and weld.Part1
+
+        if part1 then
+            local ownerPlayer = nil
+            for _, pl in ipairs(Players:GetPlayers()) do
+                if pl.Character and part1:IsDescendantOf(pl.Character) then
+                    ownerPlayer = pl
+                    break
+                end
+            end
+
+            while getgenv().LoopGrabActive and workspace:FindFirstChild("GrabParts") do
+                if ownerPlayer then
+                    local tgtTorso = ownerPlayer.Character and ownerPlayer.Character:FindFirstChild("HumanoidRootPart") 
+                    local tgtHead = ownerPlayer.Character and ownerPlayer.Character:FindFirstChild("Head")
+                    local myTorso = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") 
+
+                    if tgtTorso and myTorso and tgtHead then
+                        pcall(function()
+                            SetNetworkOwner:FireServer(tgtTorso, CFrame.lookAt(myTorso.Position, tgtTorso.Position))
+                        end)
+                    end
+                else
+                    if part1.Parent then
+                        local myTorso = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+                        if myTorso then
+                            pcall(function()
+                                SetNetworkOwner:FireServer(part1, CFrame.lookAt(myTorso.Position, part1.Position))
+                            end)
+                        end
+                    end
+                end
+                task.wait()
+            end
+        end
+        task.wait()
+    end
+end)
