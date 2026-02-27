@@ -1,302 +1,194 @@
--- v1.5
-local StarterGui = game:GetService("StarterGui")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
+local rs = game:GetService("ReplicatedStorage")
+local StarterGui = game:GetService("StarterGui")
 
-local LocalPlayer = Players.LocalPlayer
+local plr = Players.LocalPlayer
+local inv = workspace[plr.Name .. "SpawnedInToys"]
 
--- 이미 실행 중이면 중복 실행 방지
-if getgenv().PalletAttackRunning then
+-- ▶ 알림 함수
+local function Notify(title, text, duration)
     StarterGui:SetCore("SendNotification", {
-        Title = "[ ⚠️RagdollGrab ]",
-        Text = "이미 실행 중입니다. 먼저 종료 스크립트를 사용해주세요.",
-        Duration = 3
+        Title = title,
+        Text = text,
+        Duration = duration or 3,
     })
-    return
 end
 
--- ==========================================
--- [0. 실행기 호환성 테스트]
--- ==========================================
-local requiredFunctions = {
-    "getgenv",
-    "hookmetamethod",
-    "checkcaller",
-    "getnamecallmethod"
-}
+if _G.RGB_State == nil then
+    _G.RGB_State = "off"   -- "off" | "starting" | "on"
+    _G.RGB_Toggle = false
+end
 
-for _, funcName in ipairs(requiredFunctions) do
-    if not getfenv()[funcName] then
-        warn("[System] 호환성 테스트 실패! 없는 함수: " .. funcName)
-        StarterGui:SetCore("SendNotification", {
-            Title = "System Error",
-            Text = "⚠️ 이 실행기는 스크립트를 지원하지 않습니다.",
-            Duration = 5,
-        })
+if _G.RGB_State == "on" then
+    -- 켜져있음 → 끄기
+    _G.RGB_Toggle = false
+    _G.RGB_State = "off"
+    Notify("🔴 Ragdoll Grab", "Ragdoll Grab이 꺼졌습니다.", 3)
+    return
+
+elseif _G.RGB_State == "starting" then
+    -- 아직 켜지는 중
+    Notify("⚠️ Ragdoll Grab", "이미 켜져 있습니다!", 3)
+    return
+
+elseif _G.RGB_State == "off" then
+    -- 꺼져있음 → 켜기
+    _G.RGB_Toggle = true
+    _G.RGB_State = "starting"
+    Notify("✅ Ragdoll Grab", "Ragdoll Grab이 켜졌습니다.", 3)
+end
+
+-- ================================================
+-- RagdollGrabF 메인 루프
+-- ================================================
+local function RagdollGrabF()
+    _G.RGB_State = "on"
+
+    if not _G.RGB_Toggle then
+        local deskToRemove = inv:FindFirstChild("RB")
+        if deskToRemove then
+            local destroyRemote = rs:FindFirstChild("MenuToys") and rs.MenuToys:FindFirstChild("DestroyToy")
+            if destroyRemote then pcall(function() destroyRemote:FireServer(deskToRemove) end) end
+        end
+        _G.RGB_State = "off"
         return
     end
-end
 
--- [상태 활성화]
-getgenv().PalletAttackRunning = true
-getgenv().IsRespawning = false
-getgenv().LastSpamTime = 0
+    while _G.RGB_Toggle and task.wait() do
+        local char = plr.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if not hrp then continue end
 
--- ==========================================
--- [설정 및 변수]
--- ==========================================
-local PALLET_NAME = "PalletLightBrown"
-local SPAM_INTERVAL = 0.02
-local DROP_HEIGHT = 50000
-local DROP_SPEED = -100000
-local IMPACT_POWER = 10
-local SEGMENTS = 8
+        local desk = inv:FindFirstChild("RB")
 
--- [리모트 찾기]
-local menuToys = ReplicatedStorage:WaitForChild("MenuToys", 5)
-local spawnToyRemote = menuToys and menuToys:WaitForChild("SpawnToyRemoteFunction")
-local destroyToyRemote = menuToys and menuToys:FindFirstChild("DestroyToy")
+        -- RB(팔레트) 없으면 새로 스폰
+        if not desk then
+            local spawnRemote = rs.MenuToys and rs.MenuToys:FindFirstChild("SpawnToyRemoteFunction")
+            if spawnRemote then
+                local offset = hrp.CFrame.LookVector * -24
+                local spawnCF = hrp.CFrame + offset
 
-local grabEvents = ReplicatedStorage:WaitForChild("GrabEvents", 5)
-local setNetworkOwnerRemote = grabEvents and grabEvents:WaitForChild("SetNetworkOwner")
-local destroyGrabLineRemote = grabEvents and grabEvents:WaitForChild("DestroyGrabLine")
+                task.spawn(function()
+                    pcall(function()
+                        spawnRemote:InvokeServer("PalletLightBrown", spawnCF, spawnCF.Position)
+                        task.wait(0.1)
+                    end)
 
-if not (spawnToyRemote and destroyToyRemote and setNetworkOwnerRemote and destroyGrabLineRemote) then
-    warn("[System] 필수 리모트를 찾지 못했습니다.")
-    getgenv().PalletAttackRunning = false
-    return
-end
-
--- ==========================================
--- [캐릭터/NPC 판별 함수]
--- 파트로부터 부모 모델을 탐색해 Humanoid가 있으면 true 반환
--- ==========================================
-local function IsCharacterOrNPC(part)
-    -- 파트 자체 → 바로 위 Model → 그 위 Model 순서로 최대 2단계 탐색
-    local model = part.Parent
-    for _ = 1, 2 do
-        if not model then break end
-        if model:IsA("Model") and model:FindFirstChildOfClass("Humanoid") then
-            return true, model
-        end
-        model = model.Parent
-    end
-    return false, nil
-end
-
--- [충돌 방지 함수]
-local function SetNoCollisionWithPlayer(palletPart)
-    local char = LocalPlayer.Character
-    if not char then return end
-    for _, part in pairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
-            local constraint = Instance.new("NoCollisionConstraint")
-            constraint.Part0 = palletPart
-            constraint.Part1 = part
-            constraint.Parent = palletPart
-        end
-    end
-end
-
--- [소환 함수]
-local function SpawnPallet()
-    if getgenv().IsRespawning or not getgenv().PalletAttackRunning then return end
-    getgenv().IsRespawning = true
-
-    if getgenv().CurrentPalletModel and getgenv().CurrentPalletModel.Parent then
-        pcall(function() destroyToyRemote:FireServer(getgenv().CurrentPalletModel) end)
-    end
-    getgenv().CurrentPalletModel = nil
-    getgenv().CurrentPalletPart = nil
-
-    local char = LocalPlayer.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    
-    if not hrp then 
-        getgenv().IsRespawning = false 
-        return 
-    end
-
-    local spawnPos = hrp.Position + Vector3.new(0, 5, 0)
-    local rx, ry, rz = hrp.CFrame:ToOrientation()
-    local finalCFrame = CFrame.new(spawnPos) * CFrame.fromOrientation(math.rad(90), ry, 0)
-
-    task.spawn(function()
-        pcall(function()
-            spawnToyRemote:InvokeServer(PALLET_NAME, finalCFrame, Vector3.zero)
-        end)
-    end)
-
-    task.wait(0.3)
-
-    local toyFolder = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
-    local foundModel = nil
-
-    if toyFolder then
-        local children = toyFolder:GetChildren()
-        for i = #children, 1, -1 do
-            if children[i].Name == PALLET_NAME and children[i]:IsA("Model") then
-                foundModel = children[i]
-                break
-            end
-        end
-    end
-
-    if foundModel then
-        local foundPart = foundModel:FindFirstChild("SoundPart")
-        if foundPart then
-            getgenv().CurrentPalletModel = foundModel
-            getgenv().CurrentPalletPart = foundPart
-            
-            SetNoCollisionWithPlayer(foundPart)
-            foundPart.CanCollide = false
-            foundPart.Massless = true
-            
-            for i = 1, 5 do
-                if not foundPart.Parent then break end
-                pcall(function()
-                    setNetworkOwnerRemote:FireServer(foundPart, foundPart.CFrame)
-                end)
-                task.wait(0.02)
-            end
-            
-            foundPart.CFrame = CFrame.new(0, DROP_HEIGHT, 0)
-        end
-    end
-
-    getgenv().IsRespawning = false
-end
-
--- ==========================================
--- [훅 시스템 - 잡기 감지]
--- SetNetworkOwner가 감지되면 Humanoid 보유 여부를 확인,
--- 캐릭터/NPC일 때만 타겟으로 설정 (일반 물건은 무시)
--- ==========================================
-if not getgenv().PalletAttackHookInstalled then
-    getgenv().PalletAttackHookInstalled = true
-    local oldNamecall
-    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-        if not getgenv().PalletAttackRunning then
-            return oldNamecall(self, ...)
-        end
-
-        local method = getnamecallmethod()
-        if method == "FireServer" then
-            if self == setNetworkOwnerRemote then
-                if not checkcaller() then
-                    local targetPart = ({...})[1]
-                    if typeof(targetPart) == "Instance" and targetPart:IsA("BasePart") then
-                        -- 판자 자기 자신은 제외
-                        if targetPart ~= getgenv().CurrentPalletPart then
-                            -- ★ 핵심: Humanoid가 있는 캐릭터/NPC 파트인지 검사
-                            local isChar, _ = IsCharacterOrNPC(targetPart)
-                            if isChar then
-                                -- 캐릭터 또는 NPC → 공격 타겟 설정
-                                getgenv().PalletAttackTarget = targetPart
-                            else
-                                -- 팔다리 없는 일반 물건 → 타겟 설정 안 함 (무시)
+                    for _ = 1, 3 do
+                        for _, item in pairs(inv:GetChildren()) do
+                            if item.Name == "PalletLightBrown" then
+                                local soundPart = item:FindFirstChild("SoundPart")
+                                if soundPart then
+                                    for _ = 1, 3 do
+                                        pcall(function()
+                                            rs.GrabEvents.SetNetworkOwner:FireServer(soundPart, soundPart.CFrame)
+                                            rs.GrabEvents.SetNetworkOwner:FireServer(soundPart, hrp.CFrame)
+                                        end)
+                                    end
+                                    local partOwner = soundPart:FindFirstChild("PartOwner")
+                                    if partOwner and partOwner.Value == plr.Name then
+                                        item.Name = "RB"
+                                        return
+                                    end
+                                end
                             end
                         end
+                        task.wait()
+                    end
+                end)
+
+                task.wait()
+                desk = inv:FindFirstChild("RB")
+            end
+        end
+
+        if not desk then continue end
+
+        -- 충돌 비활성화
+        pcall(function()
+            for _, part in ipairs(desk:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                end
+            end
+        end)
+
+        local soundPart = desk:FindFirstChild("SoundPart")
+        if not soundPart then
+            local destroyRemote = rs:FindFirstChild("MenuToys") and rs.MenuToys:FindFirstChild("DestroyToy")
+            if destroyRemote then pcall(function() destroyRemote:FireServer(desk) end) end
+            continue
+        end
+
+        local partOwner = soundPart:FindFirstChild("PartOwner")
+        if not partOwner or partOwner.Value ~= plr.Name then
+            local destroyRemote = rs:FindFirstChild("MenuToys") and rs.MenuToys:FindFirstChild("DestroyToy")
+            if destroyRemote then pcall(function() destroyRemote:FireServer(desk) end) end
+            continue
+        end
+
+        local targetFound = false
+
+        -- 잡을 대상 탐색
+        for _, other in pairs(Players:GetPlayers()) do
+            if other ~= plr and other.Character and other.Character:FindFirstChild("Head") then
+                local head = other.Character.Head
+                local headPartOwner = head:FindFirstChild("PartOwner")
+                local FreeKick = head:FindFirstChild("OwnerKickRagdoll")
+
+                if (headPartOwner and headPartOwner:IsA("StringValue") and headPartOwner.Value == plr.Name) or
+                   (FreeKick and FreeKick:IsA("StringValue")) then
+
+                    local humanoid = other.Character:FindFirstChildOfClass("Humanoid")
+                    if humanoid then
+                        local ragdolled = humanoid:FindFirstChild("Ragdolled")
+                        if ragdolled and ragdolled:IsA("BoolValue") and ragdolled.Value then
+                            continue
+                        end
+                    end
+
+                    local otherHrp = other.Character:FindFirstChild("HumanoidRootPart")
+                    if otherHrp then
+                        soundPart.CFrame = CFrame.new(0, 9999, 0)
+                        task.wait(0.01)
+                        soundPart.CFrame = otherHrp.CFrame * CFrame.Angles(math.rad(-90), 0, 0)
+                        targetFound = true
+                        break
                     end
                 end
-            elseif self == destroyGrabLineRemote then
-                if not checkcaller() then
-                    getgenv().PalletAttackTarget = nil
-                end
             end
         end
-        return oldNamecall(self, ...)
-    end)
+
+        -- Main BodyPosition 처리
+        local main = desk:FindFirstChild("Main")
+        if main then
+            local bp = main:FindFirstChildOfClass("BodyPosition")
+            if not bp then
+                bp = Instance.new("BodyPosition")
+                bp.MaxForce = Vector3.new(999999, 999999, 999999)
+                bp.P = 500000
+                bp.D = 5000
+                bp.Parent = main
+            end
+
+            if not targetFound then
+                local highPos = Vector3.new(0, 9999, 0)
+                bp.Position = highPos
+                soundPart.CFrame = CFrame.new(highPos)
+            else
+                bp.Position = soundPart.Position
+            end
+        end
+    end
+
+    -- 루프 종료 후 RB 정리
+    local deskToRemove = inv:FindFirstChild("RB")
+    if deskToRemove then
+        local destroyRemote = rs:FindFirstChild("MenuToys") and rs.MenuToys:FindFirstChild("DestroyToy")
+        if destroyRemote then pcall(function() destroyRemote:FireServer(deskToRemove) end) end
+    end
+
+    _G.RGB_State = "off"
 end
 
--- ==========================================
--- [무한 루프 시작 - 소유권 유지 + 상공 왕복 공격]
--- ==========================================
-local hammerGoingDown = true
-local segmentIndex = 0
-
-getgenv().PalletAttackConnection = RunService.Heartbeat:Connect(function()
-    if not getgenv().PalletAttackRunning then return end
-
-    local now = os.clock()
-    local grabbedTarget = getgenv().PalletAttackTarget
-    local palletPart = getgenv().CurrentPalletPart
-    local palletModel = getgenv().CurrentPalletModel
-
-    -- 셋오너 스팸: 타겟이 존재하고 캐릭터/NPC인 경우에만 동작
-    if grabbedTarget and grabbedTarget.Parent then
-        if now - getgenv().LastSpamTime >= SPAM_INTERVAL then
-            pcall(function()
-                setNetworkOwnerRemote:FireServer(grabbedTarget, grabbedTarget.CFrame)
-            end)
-            getgenv().LastSpamTime = now
-        end
-    end
-
-    if palletModel and palletModel.Parent and palletPart and palletPart.Parent then
-        local targetPos = nil
-        
-        -- 판자 공격 위치 계산: 타겟의 HumanoidRootPart 또는 Torso 기준
-        if grabbedTarget and grabbedTarget.Parent then
-            local model = grabbedTarget.Parent
-            if model and not model:FindFirstChild("Humanoid") then
-                model = model.Parent
-            end
-            
-            if model and model:FindFirstChild("Humanoid") then
-                local hrp = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Torso")
-                if hrp then
-                    targetPos = hrp.Position
-                end
-            end
-
-            -- Humanoid가 없으면 targetPos는 nil → 공격 안 함
-        end
-
-        if targetPos then
-            local startPos = targetPos + Vector3.new(0, DROP_HEIGHT, 0)
-            local endPos = targetPos
-
-            if hammerGoingDown then
-                segmentIndex = segmentIndex + 1
-                local alpha = segmentIndex / SEGMENTS
-                local nextPos = startPos:Lerp(endPos, alpha)
-                
-                palletPart.CFrame = CFrame.new(nextPos)
-                palletPart.AssemblyLinearVelocity = Vector3.new(0, DROP_SPEED, 0)
-                palletPart.AssemblyAngularVelocity = Vector3.zero
-                
-                if segmentIndex >= SEGMENTS then
-                    palletPart.AssemblyLinearVelocity = Vector3.new(0, -IMPACT_POWER, 0)
-                    hammerGoingDown = false
-                end
-            else
-                palletPart.CFrame = CFrame.new(startPos)
-                palletPart.AssemblyLinearVelocity = Vector3.zero
-                segmentIndex = 0
-                hammerGoingDown = true
-            end
-        else
-            -- 타겟 없음(또는 물건) → 판자를 상공 대기 위치로 복귀
-            palletPart.CFrame = CFrame.new(0, DROP_HEIGHT, 0)
-            palletPart.AssemblyLinearVelocity = Vector3.zero
-            palletPart.AssemblyAngularVelocity = Vector3.zero
-            segmentIndex = 0
-            hammerGoingDown = true
-        end
-    else
-        if not getgenv().IsRespawning then
-            SpawnPallet()
-        end
-    end
-end)
-
-task.spawn(SpawnPallet)
-
-StarterGui:SetCore("SendNotification", {
-    Title = "[ ✅Ragdoll Grab ]",
-    Text = "Pallet Attack v1.5 : ON",
-    Duration = 3
-})
+task.spawn(RagdollGrabF)
