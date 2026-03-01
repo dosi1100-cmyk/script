@@ -1,159 +1,150 @@
--- v1.1
-local StarterGui = game:GetService("StarterGui")
-
-if getgenv().AntiHoldPartRunning then
-    warn("이미 Anti-Hold Part 기능이 실행 중입니다.")
-    
-    -- 이미 켜져있을 때 안내 알림
-    pcall(function()
-        StarterGui:SetCore("SendNotification", {
-            Title = "[ ⚠️ 안내 ]",
-            Text = "이미 Anti-Hold Part가 실행 중입니다.",
-            Duration = 3
-        })
-    end)
-    return
+-- Version: v1.7
+-- [켜기 스크립트]
+if _G.PCLD_Tracker_Running then
+    return -- 이미 실행 중이면 중복 실행 방지
 end
 
-getgenv().AntiHoldPartRunning = true
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
 
--- 켜졌을 때 알림
-pcall(function()
-    StarterGui:SetCore("SendNotification", {
-        Title = "[ ✅ 실행 ]",
-        Text = "Anti-Hold Part 기능이 켜졌습니다.",
-        Duration = 3
-    })
+local guiName = "PCLD_TrackerInfoGui"
+
+_G.PCLD_Tracker_Running = true
+_G.PCLD_TimeTracking = {} 
+_G.PCLD_CachedDetectors = {}
+
+-- 1. 스크립트 실행 시점에 존재하는 기존 PCLD 탐색
+for _, obj in ipairs(Workspace:GetDescendants()) do
+    if obj.Name == "PlayerCharacterLocationDetector" and obj:IsA("BasePart") then
+        _G.PCLD_CachedDetectors[obj] = true
+    end
+end
+
+-- 2. 도중에 새로 생성되는 PCLD 감지
+_G.PCLD_AddedConn = Workspace.DescendantAdded:Connect(function(obj)
+    if obj.Name == "PlayerCharacterLocationDetector" and obj:IsA("BasePart") then
+        _G.PCLD_CachedDetectors[obj] = true
+    end
 end)
 
-local function AntiBananaF()
-    local dropPos = CFrame.new(0, -999999999, 0)
-    local dropVec = Vector3.new(0, -999999999, 0)
-    local plr = game.Players.LocalPlayer
+-- 3. 도중에 삭제되는 PCLD 감지
+_G.PCLD_RemConn = Workspace.DescendantRemoving:Connect(function(obj)
+    if _G.PCLD_CachedDetectors and _G.PCLD_CachedDetectors[obj] then
+        _G.PCLD_CachedDetectors[obj] = nil
+        if _G.PCLD_TimeTracking and _G.PCLD_TimeTracking[obj] then
+            _G.PCLD_TimeTracking[obj] = nil
+        end
+    end
+end)
 
-    local targetItemsDict = {
-        ["CupMugWhite"] = true, ["CupMugBrown"] = true, ["FoodBanana"] = true, 
-        ["FoodBread"] = true, ["FoodBroccoli"] = true, ["FoodCakePink"] = true, 
-        ["FoodCoconut"] = true, ["FoodDippyEgg"] = true, ["FoodDonut"] = true, 
-        ["FoodFrenchFries"] = true, ["FoodHamburger"] = true, ["FoodHotdog"] = true, 
-        ["FoodMayonnaise"] = true, ["FoodMeatStick"] = true, ["FoodMushroomPoison"] = true, 
-        ["FoodPizzaCheese"] = true, ["FoodPizzaPepperoni"] = true, ["FoodSodaCan"] = true, 
-        ["PoopPile"] = true, ["PoopPileSparkle"] = true, ["InstrumentBrassBugle"] = true, 
-        ["InstrumentBrassTrumpet"] = true, ["InstrumentDrumBongos"] = true, 
-        ["InstrumentDrumSnare"] = true, ["InstrumentGuitarAcoustic"] = true, 
-        ["InstrumentGuitarBanjo"] = true, ["InstrumentGuitarLyre"] = true, 
-        ["InstrumentGuitarUkulele"] = true, ["InstrumentGuitarViolin"] = true, 
-        ["InstrumentPianoKeyboard"] = true, ["InstrumentPianoMelodica"] = true, 
-        ["InstrumentVoiceMicrophone"] = true, ["InstrumentWoodwindOcarina"] = true, 
-        ["InstrumentWoodwindSaxophone"] = true, ["InstrumentBrassVuvuzela"] = true
-    }
-
-    local processedItems = {} 
-
-    local function GetMyPlotNumber()
-        local plots = workspace:FindFirstChild("Plots")
-        if not plots then return nil end
-
-        for i = 1, 5 do
-            local plot = plots:FindFirstChild("Plot" .. i)
-            if plot then
-                local plotSign = plot:FindFirstChild("PlotSign")
-                if plotSign then
-                    local owners = plotSign:FindFirstChild("ThisPlotsOwners")
-                    if owners then
-                        local ownerVal = owners:FindFirstChildOfClass("StringValue")
-                        if ownerVal and ownerVal.Value == plr.Name then
-                            return i
-                        end
-                    end
-                end
+-- 지속적으로 감지기와 누적 시간을 업데이트하는 함수
+local function updateDetectors()
+    local activePlayers = {}
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Character then
+            local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                table.insert(activePlayers, {
+                    name = player.Name,
+                    disp = player.DisplayName,
+                    pos = hrp.Position
+                })
             end
         end
-        return nil
     end
-
-    local function ProcessItem(item)
-        if not item or not item.Parent then return end
-        if processedItems[item] then return end
-
-        local holdPart = item:FindFirstChild("HoldPart")
-        if not holdPart then return end
-
-        local holdRemote = holdPart:FindFirstChild("HoldItemRemoteFunction")
-        local dropRemote = holdPart:FindFirstChild("DropItemRemoteFunction")
-
-        if holdRemote and dropRemote then
-            processedItems[item] = true
-
-            task.spawn(function()
-                while item and item.Parent and getgenv().AntiHoldPartRunning do
-                    local char = plr.Character
-                    if not char then break end
-
-                    task.spawn(function()
-                        pcall(function()
-                            holdRemote:InvokeServer(item, char)
-                            dropRemote:InvokeServer(item, dropPos, dropVec)
-                        end)
-                    end)
-
-                    task.wait(0.05)
-                end
+    
+    for detector, _ in pairs(_G.PCLD_CachedDetectors) do
+        if not detector.Parent then continue end 
+        
+        if not _G.PCLD_TimeTracking[detector] then
+            _G.PCLD_TimeTracking[detector] = {}
+        end
+        
+        local closestPlayerName = nil
+        local closestPlayerDisp = nil
+        local shortestDistance = math.huge
+        
+        for _, pData in ipairs(activePlayers) do
+            local distance = (detector.Position - pData.pos).Magnitude
+            if distance < shortestDistance then
+                shortestDistance = distance
+                closestPlayerName = pData.name
+                closestPlayerDisp = pData.disp
+            end
+        end
+        
+        if closestPlayerName then
+            if not _G.PCLD_TimeTracking[detector][closestPlayerName] then
+                _G.PCLD_TimeTracking[detector][closestPlayerName] = { time = 0, disp = closestPlayerDisp }
+            end
+            _G.PCLD_TimeTracking[detector][closestPlayerName].time = _G.PCLD_TimeTracking[detector][closestPlayerName].time + 0.1
+        end
+        
+        local maxTime = -0.5
+        local targetName = nil
+        local targetDisp = nil
+        
+        for pName, data in pairs(_G.PCLD_TimeTracking[detector]) do
+            if data.time > maxTime then
+                maxTime = data.time
+                targetName = pName
+                targetDisp = data.disp
+            end
+        end
+        
+        if targetName then
+            local gui = detector:FindFirstChild(guiName)
+            if not gui then
+                gui = Instance.new("BillboardGui")
+                gui.Name = guiName
+                gui.Size = UDim2.new(5, 0, 1.5, 0) 
+                gui.StudsOffset = Vector3.new(0, 0, 0)
+                gui.AlwaysOnTop = false
                 
-                -- 아이템이 사라지면 처리 목록에서 제거
-                processedItems[item] = nil
-            end)
-        end
-    end
-
-    while getgenv().AntiHoldPartRunning do
-        task.wait()
-
-        local char = plr.Character
-        if not char or not char.Parent then continue end
-
-        local myPlotNumber = GetMyPlotNumber()
-        local itemsToProcess = {}
-
-        for _, player in ipairs(game.Players:GetPlayers()) do
-            if player == plr then continue end
-
-            local folder = workspace:FindFirstChild(player.Name .. "SpawnedInToys")
-            if folder then
-                for _, item in ipairs(folder:GetChildren()) do
-                    if targetItemsDict[item.Name] then
-                        table.insert(itemsToProcess, item)
-                    end
-                end
+                local displayLabel = Instance.new("TextLabel")
+                displayLabel.Name = "DisplayNameLabel"
+                displayLabel.Size = UDim2.new(1, 0, 0.5, 0)
+                displayLabel.Position = UDim2.new(0, 0, 0, 0)
+                displayLabel.BackgroundTransparency = 1
+                displayLabel.TextColor3 = Color3.new(1, 1, 1)
+                displayLabel.TextStrokeTransparency = 0
+                displayLabel.TextScaled = true
+                displayLabel.Font = Enum.Font.GothamBold
+                displayLabel.Parent = gui
+                
+                local nameLabel = Instance.new("TextLabel")
+                nameLabel.Name = "NameLabel"
+                nameLabel.Size = UDim2.new(1, 0, 0.4, 0)
+                nameLabel.Position = UDim2.new(0, 0, 0.5, 0)
+                nameLabel.BackgroundTransparency = 1
+                nameLabel.TextColor3 = Color3.new(1, 1, 1)
+                nameLabel.TextStrokeTransparency = 0
+                nameLabel.TextScaled = true
+                nameLabel.Font = Enum.Font.Gotham
+                nameLabel.Parent = gui
+                
+                gui.Parent = detector
             end
-        end
-
-        local plotItems = workspace:FindFirstChild("PlotItems")
-        if plotItems then
-            for i = 1, 5 do
-                if i == myPlotNumber then continue end
-                local plot = plotItems:FindFirstChild("Plot" .. i)
-                if plot then
-                    for _, item in ipairs(plot:GetChildren()) do
-                        if targetItemsDict[item.Name] then
-                            table.insert(itemsToProcess, item)
-                        end
-                    end
+            
+            local displayLabel = gui:FindFirstChild("DisplayNameLabel")
+            local nameLabel = gui:FindFirstChild("NameLabel")
+            
+            if displayLabel and nameLabel then
+                if displayLabel.Text ~= targetDisp then
+                    displayLabel.Text = targetDisp
                 end
-            end
-        end
-
-        for _, item in ipairs(itemsToProcess) do
-            if not getgenv().AntiHoldPartRunning then break end
-            ProcessItem(item)
-        end
-
-        for item, _ in pairs(processedItems) do
-            if not item.Parent then
-                processedItems[item] = nil
+                if nameLabel.Text ~= targetName then
+                    nameLabel.Text = targetName
+                end
             end
         end
     end
 end
 
-task.spawn(AntiBananaF)
+-- 0.1초마다 지속적으로 업데이트 실행
+task.spawn(function()
+    while _G.PCLD_Tracker_Running do
+        updateDetectors()
+        task.wait(0.1)
+    end
+end)
