@@ -1,0 +1,58 @@
+local Players = game:GetService("Players")
+local rs = game:GetService("ReplicatedStorage")
+local StarterGui = game:GetService("StarterGui")
+
+StarterGui:SetCore("SendNotification", {
+    Title = "[ 기차 소유권 획득 ]", 
+    Text = "기차 소유권 획득 시작", 
+    Duration = 2
+})
+
+local plr = Players.LocalPlayer
+local inv = workspace[plr.Name .. "SpawnedInToys"]
+
+local function TrSw()
+    local char = plr.Character
+    local hrp = char.HumanoidRootPart
+    local hum = char.Humanoid
+
+    -- 기차 좌석으로 텔레포트 후 착석
+    hrp.CFrame = workspace.Map.AlwaysHereTweenedObjects.Train.Object.ObjectModel.Seat.CFrame
+    repeat task.wait() until hum.SeatPart ~= nil
+
+    -- 기타 아이템이 없으면 스폰
+    if not inv:FindFirstChild("InstrumentGuitarLyre") then
+        task.spawn(function()
+            rs.MenuToys.SpawnToyRemoteFunction:InvokeServer(
+                "InstrumentGuitarLyre",
+                CFrame.new(0, 99999, 0),
+                Vector3.new(0, 99999, 0)
+            )
+        end)
+    end
+
+    local HPT = inv:WaitForChild("InstrumentGuitarLyre")
+                   :WaitForChild("HoldPart")
+                   :WaitForChild("RigidConstraint")
+
+    repeat
+        task.wait()
+        local lyre = inv:FindFirstChild("InstrumentGuitarLyre")
+        if lyre then
+            task.spawn(function()
+                lyre:FindFirstChild("HoldPart")
+                    :FindFirstChild("HoldItemRemoteFunction")
+                    :InvokeServer(lyre, char)
+            end)
+        end
+    until HPT.Attachment1 ~= nil
+
+    task.wait(0.7)
+
+    local lyre = inv:FindFirstChild("InstrumentGuitarLyre")
+    if lyre then
+        rs.MenuToys.DestroyToy:FireServer(lyre)
+    end
+end
+
+TrSw()
