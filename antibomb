@@ -79,7 +79,7 @@ local ovenMain = myOven:WaitForChild("Main")
 -- [수정됨] 오븐 뒤 5 Studs로 강제 고정 텔레포트 (벽 무시)
 if HumanoidRootPart and ovenMain then
     -- CFrame 설정은 물리 충돌을 무시하고 해당 좌표로 즉시 이동합니다.
-    HumanoidRootPart.CFrame = ovenMain.CFrame * CFrame.new(0, 0, 5)
+    HumanoidRootPart.CFrame = ovenMain.CFrame * CFrame.new(0, 0, 7)
 end
 
 --------------------------------------------------------------------------------
