@@ -1,0 +1,73 @@
+if getgenv().NoclipGrab then
+    game.StarterGui:SetCore("SendNotification", {
+        Title = "NoclipGrab",
+        Text = "이미 켜져있습니다!",
+        Duration = 3
+    })
+    return
+end
+
+getgenv().NoclipGrab = true
+game.StarterGui:SetCore("SendNotification", {
+    Title = "NoclipGrab",
+    Text = "기능이 켜졌습니다!",
+    Duration = 3
+})
+
+local Players = game:GetService("Players")
+local trackedParts = {}
+
+task.spawn(function()
+    while getgenv().NoclipGrab do
+        local grabbedThisFrame = {}
+        local grabParts = workspace:FindFirstChild("GrabParts")
+        
+        if grabParts then
+            for _, gp in ipairs(grabParts:GetChildren()) do
+                if gp.Name == "GrabPart" then
+                    local weld = gp:FindFirstChildOfClass("WeldConstraint")
+                    local part1 = weld and weld.Part1
+
+                    if part1 then
+                        if part1:IsA("BasePart") and not part1.Anchored then
+                            part1.CanCollide = false
+                            grabbedThisFrame[part1] = true
+                        end
+                        
+                        local model = part1:FindFirstAncestorOfClass("Model")
+                        if model and model ~= workspace then
+                            for _, desc in ipairs(model:GetDescendants()) do
+                                if desc:IsA("BasePart") and not desc.Anchored then
+                                    desc.CanCollide = false
+                                    grabbedThisFrame[desc] = true
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        for part, _ in pairs(trackedParts) do
+            if not grabbedThisFrame[part] then
+                if part and part.Parent then
+                    part.CanCollide = true
+                end
+                trackedParts[part] = nil
+            end
+        end
+
+        for part, _ in pairs(grabbedThisFrame) do
+            trackedParts[part] = true
+        end
+
+        task.wait()
+    end
+
+    for part, _ in pairs(trackedParts) do
+        if part and part.Parent then
+            part.CanCollide = true
+        end
+    end
+    trackedParts = {}
+end)
