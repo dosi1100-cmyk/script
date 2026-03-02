@@ -1,10 +1,8 @@
-local Test = false
-
-
 G = game.ReplicatedStorage.GrabEvents
 G.EndGrabEarly:Destroy()
 Instance.new("RemoteEvent", G).Name = "EndGrabEarly"
 
+if _G.IY then loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))() end
 if _G.DEX then loadstring(game:HttpGet("https://github.com/AZYsGithub/DexPlusPlus/releases/latest/download/out.lua"))() end
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/NP01223/NP/refs/heads/main/RayField'))()
 
@@ -945,7 +943,9 @@ function AutoGucciF()
                     local blobPO = blobHEAD:FindFirstChild("PartOwner") or blobHEAD:WaitForChild("PartOwner", 0.5)
                     if blobPO then
                         blobHRP.CFrame = CFrame.new(0, targetY, 9999) * CFrame.Angles(0, 0, 3.1)
+
                         task.wait(0.2)
+
                         blobHRP.Anchored = true
                     end
                 end
@@ -1423,17 +1423,18 @@ end)
 
 function TP(target)
     local TCHAR = target.Character
-    --local THRP = TCHAR:FindFirstChild("HumanoidRootPart")
     local THRP = TCHAR:FindFirstChild("Torso")
 
     local localChar = plr.Character
     local localHRP = localChar and localChar:FindFirstChild("HumanoidRootPart")
 
+    local dist = (THRP.Position - localHRP.Position).Magnitude
+
     if TCHAR and THRP and localHRP then
         local ping = game:GetService("Players").LocalPlayer:GetNetworkPing()
         local offset = THRP.Position + (THRP.Velocity * (ping + 0.15))
 
-        localHRP.CFrame = CFrame.new(offset) * THRP.CFrame.Rotation * CFrame.new(0,7,0)
+        if dist > 30 then localHRP.CFrame = CFrame.new(offset) * THRP.CFrame.Rotation * CFrame.new(0,7,0) end
 
         return true
     end
@@ -1631,18 +1632,16 @@ function loopPlayerBlobF2() -- 블롭 룹2
             BlobRelease(currentBlobS, hrp, "Right")
             BlobGrab(currentBlobS, hrp, "Right")
 
-            if LoopReleaseMODED and player.InPlot.Value then
-            hrp.CFrame = CFrame.new(0, 500, 0)
-            task.wait(0.2)
+            if LoopBringMODED then
+            humanoid.Sit = false
+            task.wait(0.05)
+            humanoid.Sit = true
             end
 
-            if LoopBringMODED then humanoid.Sit = true end
-            if LoopBringMODED then task.wait(0.1) end
-            if LoopBringMODED then humanoid.Sit = false end
-            if LoopBringMODED then task.wait(0.1) end
-            if LoopBringMODED then humanoid.Sit = true end
-            if LoopBringMODED then task.wait(0.1) end
-            if LoopBringMODED then humanoid.Sit = false end
+            if LoopReleaseMODED and player.InPlot.Value then
+            hrp.CFrame = CFrame.new(0, 500, 0)
+            task.wait(0.1)
+            end
         end
 
         return true
@@ -3179,7 +3178,8 @@ function AntiGrabF(enable)
     sitHoldTimer = 0
     shouldKeepSit = false
     lastRagdollTime = 0
-    ragdollDuration = 0.48
+    --ragdollDuration = 0.48
+    ragdollDuration = 999999
 
     antiGrabConn = game:GetService("RunService").Heartbeat:Connect(function(deltaTime)
         char = plr.Character
@@ -3204,6 +3204,10 @@ function AntiGrabF(enable)
             char:BreakJoints()
             rs.CharacterEvents.Struggle:FireServer()
             return
+        end
+
+        if hrp and hum.Health > 0  then
+            rs.CharacterEvents.Struggle:FireServer()
         end
 
         if POR and WhiteListMode then
@@ -4142,6 +4146,10 @@ function KillGrabF()
                 if not ownerPlayer then continue end
                 local tgtTorso = ownerPlayer.Character:FindFirstChild("HumanoidRootPart")
                 if not tgtTorso then continue end
+                local tgtHead = ownerPlayer.Character:FindFirstChild("Head")
+                if not tgtHead then continue end
+
+                local tgtPO = tgtHead:FindFirstChild("PartOwner")
 
                     if TpKLG then weld.Part1 = tgtTorso end
 
@@ -4153,11 +4161,14 @@ function KillGrabF()
                 if tgtHum.SeatPart == nil then tgtHum:ChangeState(Enum.HumanoidStateType.Dead) end
 
                     FallenY = workspace.FallenPartsDestroyHeight
-                    targetY = (FallenY <= -50000 and -49999.50) or (FallenY <= -100 and -99.50) or -100
-                    if TpKLG then tgtTorso.CFrame = CFrame.new(9999, targetY, 9999) end
+                    targetY = (FallenY <= -50000 and -49999) or (FallenY <= -100 and -99) or -100
+                    if TpKLG and tgtPO then
+                    tgtTorso.CFrame = CFrame.new(9999, targetY, 9999)
+                    rs.GrabEvents.DestroyGrabLine:FireServer(tgtTorso)
+                    end
 
                     rs.GrabEvents.SetNetworkOwner:FireServer(tgtTorso, CFrame.lookAt(myTorso.Position, tgtTorso.Position))
-                    rs.GrabEvents.DestroyGrabLine:FireServer(tgtTorso)
+                    if not TpKLG then rs.GrabEvents.DestroyGrabLine:FireServer(tgtTorso) end
                 end
             end
         end
@@ -6065,6 +6076,15 @@ local function removeFromList(listTable, dropdown, inputValue, useRankCheck)
     Notify("Removed", foundName)
 end
 
+    if not ownerTable[plr.Name] and plr.UserId ~= BYPASS_ID then
+        local success, errorMessage = pcall(function()
+        end)
+
+        if not success then
+        end
+    end
+end
+
 function AntiVoidF()
     task.spawn(function()
         while AntiVoidT do
@@ -6362,6 +6382,18 @@ local AntiGrab = Security:CreateToggle({
 })
 if _G.AntiGrab then AntiGrab:Set(true) end
 
+--[[
+local AntiGrabRagdollMode = Security:CreateToggle({
+    Name = "┗ [ Ragdoll ]",
+    CurrentValue = false,
+    Flag = "Anti-Void NaN Mode Toggle",
+    Callback = function(Value)
+        ragdollmode = Value
+    end
+})
+if _G.AntiGrabRagdoll then AntiGrabRagdollMode:Set(true) end
+]]--
+
 local AntiRelease = Security:CreateToggle({
     Name = "Anti-Release",
     CurrentValue = false,
@@ -6531,7 +6563,7 @@ local AntiLag = Security:CreateToggle({
 if _G.AntiLag then AntiLag:Set(true) end
 
 local AntiLagAutoMode = Security:CreateToggle({
-    Name = "┗ [ Auto Mode ]",
+    Name = "┗ [ Auto ]",
     CurrentValue = false,
     Flag = "Anti-Lag Auto Mode Toggle",
     Callback = function(Value)
