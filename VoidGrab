@@ -40,7 +40,7 @@ task.spawn(function()
                 end
             end
 
-            while getgenv().LoopGrabActive and workspace:FindFirstChild("GrabParts") do
+            while getgenv().VoidGrabActive and workspace:FindFirstChild("GrabParts") do
                 -- 파트가 앵커되어 있지 않을 때만 공허로 보내도록 조건 추가
                 if not part1.Anchored then
                     if ownerPlayer then
