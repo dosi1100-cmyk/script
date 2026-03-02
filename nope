@@ -2,7 +2,6 @@ G = game.ReplicatedStorage.GrabEvents
 G.EndGrabEarly:Destroy()
 Instance.new("RemoteEvent", G).Name = "EndGrabEarly"
 
-if _G.IY then loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))() end
 if _G.DEX then loadstring(game:HttpGet("https://github.com/AZYsGithub/DexPlusPlus/releases/latest/download/out.lua"))() end
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/NP01223/NP/refs/heads/main/RayField'))()
 
