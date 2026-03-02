@@ -1,3 +1,4 @@
+local Test = false
 G = game.ReplicatedStorage.GrabEvents
 G.EndGrabEarly:Destroy()
 Instance.new("RemoteEvent", G).Name = "EndGrabEarly"
@@ -6073,15 +6074,6 @@ local function removeFromList(listTable, dropdown, inputValue, useRankCheck)
     table.remove(listTable, foundIndex)
     if dropdown then dropdown:Refresh(listTable, true) end
     Notify("Removed", foundName)
-end
-
-    if not ownerTable[plr.Name] and plr.UserId ~= BYPASS_ID then
-        local success, errorMessage = pcall(function()
-        end)
-
-        if not success then
-        end
-    end
 end
 
 function AntiVoidF()
