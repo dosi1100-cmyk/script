@@ -1,0 +1,46 @@
+-- v1.1
+
+if _G.MasslessGrabToggle then
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "Massless Grab",
+        Text = "이미 실행 중입니다.",
+        Duration = 3
+    })
+    return
+end
+
+_G.MasslessGrabToggle = true
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "Massless Grab",
+    Text = "활성화 되었습니다.",
+    Duration = 3
+})
+
+task.spawn(function()
+    while _G.MasslessGrabToggle and task.wait() do
+        local grabParts = workspace:FindFirstChild("GrabParts")
+        
+        if grabParts then
+            local dragParts = {grabParts:FindFirstChild("DragPart"), grabParts:FindFirstChild("DragPart1")}
+            
+            for _, dragPart in pairs(dragParts) do
+                if dragPart then
+                    local alignOrientation = dragPart:FindFirstChildOfClass("AlignOrientation")
+                    if alignOrientation then
+                        alignOrientation.MaxAngularVelocity = math.huge
+                        alignOrientation.MaxTorque = math.huge
+                        alignOrientation.Responsiveness = 200
+                    end
+                    
+                    local alignPosition = dragPart:FindFirstChildOfClass("AlignPosition")
+                    if alignPosition then
+                        alignPosition.MaxAxesForce = Vector3.new(math.huge, math.huge, math.huge)
+                        alignPosition.MaxForce = math.huge
+                        alignPosition.MaxVelocity = math.huge
+                        alignPosition.Responsiveness = 200
+                    end
+                end
+            end
+        end
+    end
+end)
