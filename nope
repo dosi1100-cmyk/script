@@ -1,4 +1,5 @@
 local Test = false
+
 G = game.ReplicatedStorage.GrabEvents
 G.EndGrabEarly:Destroy()
 Instance.new("RemoteEvent", G).Name = "EndGrabEarly"
@@ -400,7 +401,6 @@ function BlobMassless(blob, target, side)
         blob.BlobmanSeatAndOwnerScript.CreatureGrab:FireServer(unpack(args2))
 		blob.BlobmanSeatAndOwnerScript.CreatureGrab:FireServer(unpack(args))
 		blob.BlobmanSeatAndOwnerScript.CreatureDrop:FireServer(unpack(args3))
-end
 
 function flingF()
     workspace.ChildAdded:Connect(function(model)
@@ -5999,34 +5999,8 @@ end
 
 local function checkPermissions(targetPlayer)
     local localPlayer = game.Players.LocalPlayer
-    local myRank = GetPlayerRank(localPlayer.Name)
-    local targetRank = GetPlayerRank(targetPlayer.Name)
-
     if targetPlayer == localPlayer then return false, "Self" end
-
-    if myRank == Ranks.Owner then return true end
-
-    if myRank == Ranks.Overseer and targetRank == Ranks.Owner then
-        return true
-    end
-
-    if myRank == Ranks.CoOwner and targetRank == Ranks.Owner then
-        return true
-    end
-
-    if targetRank == Ranks.User then
-        return true
-    end
-
-    if targetRank == Ranks.GF then
-        return false, "GFE"
-    end
-
-    if myRank > targetRank then
-        return true
-    else
-        return false, "HigherRank"
-    end
+    return true
 end
 
 local function addToList(listTable, dropdown, inputValue, useRankCheck)
@@ -6074,6 +6048,9 @@ local function removeFromList(listTable, dropdown, inputValue, useRankCheck)
     table.remove(listTable, foundIndex)
     if dropdown then dropdown:Refresh(listTable, true) end
     Notify("Removed", foundName)
+end
+
+
 end
 
 function AntiVoidF()
@@ -7011,6 +6988,28 @@ Aura:CreateToggle({
 
 -- ====================================== [ 리스트 탭 ]
 local List = Window:CreateTab("리스트", 0)
+
+AddAll = true
+
+if AddAll then
+List:CreateButton({
+    Name = "Add",
+    Callback = function()
+        for _, plr in ipairs(Players:GetPlayers()) do
+        addToList(playersInLoop1V, DropdownV1, plr.Name, true)
+        end
+    end
+})
+
+List:CreateButton({
+    Name = "Remove",
+    Callback = function()
+        for key in pairs(playersInLoop1V) do
+        removeFromList(playersInLoop1V, DropdownV1, tostring(key))
+        end
+    end
+})
+end
 
 local Dropdown = List:CreateDropdown({
     Name = "White List",
