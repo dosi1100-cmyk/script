@@ -1,0 +1,43 @@
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+if not _G.AntiVoidT then
+    _G.AntiVoidT = true
+    
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "AntiVoid",
+        Text = "Anti Void가 켜졌습니다.",
+        Duration = 2
+    })
+    
+    workspace.FallenPartsDestroyHeight = -50000
+    
+    task.spawn(function()
+        while _G.AntiVoidT do
+            local char = LocalPlayer.Character
+            if char then
+                local hrp = char:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    if hrp.Position.Y < -330 then
+                        hrp.CFrame = CFrame.new(0, -2, 0)
+                        
+                        hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                        hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                        
+                        hrp.Anchored = true
+                        task.wait(0.03)
+                        hrp.Anchored = false
+                    end
+                end
+            end
+            task.wait()
+        end
+        workspace.FallenPartsDestroyHeight = -330
+    end)
+else
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "AntiVoid",
+        Text = "Anti Void가 이미 켜져있습니다.",
+        Duration = 2
+    })
+end
