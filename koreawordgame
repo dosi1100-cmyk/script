@@ -1592,26 +1592,41 @@ startBot = function()
         local function loadFromGlobal()
                 if not _G.KWG_Words then return false end
                 local count = 0
-                for _, wordList in pairs(_G.KWG_Words) do
+                local BATCH = 10000
+                local GROUP_SKIP = 20
+                local groupCount = 0
+                for first, wordList in pairs(_G.KWG_Words) do
                         if typeof(wordList) == "table" then
+                                local dictList = dictionary[first]
+                                local normList = normalDictionary[first]
+                                if not dictList then
+                                        dictList = {}
+                                        dictionary[first] = dictList
+                                end
+                                if not normList then
+                                        normList = {}
+                                        normalDictionary[first] = normList
+                                end
                                 for _, word in ipairs(wordList) do
                                         if not isDeleted(word) and validWord(word) then
-                                                local first = firstChar(word)
-                                                dictionary[first] = dictionary[first] or {}
-                                                table.insert(dictionary[first], word)
-                                                normalDictionary[first] = normalDictionary[first] or {}
-                                                table.insert(normalDictionary[first], word)
+                                                dictList[#dictList + 1] = word
+                                                normList[#normList + 1] = word
                                                 total += 1
                                         end
                                         count += 1
-                                        if count % 5000 == 0 then
+                                        if count % BATCH == 0 then
                                                 task.wait()
                                                 status.Text = "단어 로드 중... " .. total .. "개"
                                         end
                                 end
+                                groupCount += 1
+                                if groupCount % GROUP_SKIP == 0 then
+                                        task.wait()
+                                        status.Text = "단어 로드 중... " .. total .. "개"
+                                end
                         end
                 end
-                status.Text = "단어 " .. total .. "개 로드 (KWG_WordLoader)"
+                status.Text = "단어 " .. total .. "개 로드 완료"
                 return true
         end
 
@@ -1669,12 +1684,18 @@ startBot = function()
         local killable  = {}
         local wordScore = {}
 
+        local killableCount = 0
         for startChar, wordList in pairs(dictionary) do
                 for _, word in ipairs(wordList) do
                         if not hasWordStarting(lastChar(word)) then
                                 killable[startChar] = true
                                 break
                         end
+                end
+                killableCount += 1
+                if killableCount % 500 == 0 then
+                        task.wait()
+                        status.Text = "한방 분석 중... " .. killableCount .. "/".. total
                 end
         end
 
@@ -1686,6 +1707,7 @@ startBot = function()
                 end
         end
 
+        local scoreCount = 0
         for _, wordList in pairs(dictionary) do
                 for _, word in ipairs(wordList) do
                         if not wordScore[word] then
@@ -1735,6 +1757,11 @@ startBot = function()
 
                                 wordScore[word] = score
                         end
+                        scoreCount += 1
+                        if scoreCount % 20000 == 0 then
+                                task.wait()
+                                status.Text = "점수 계산 중... " .. scoreCount .. "개"
+                        end
                 end
         end
 
@@ -1759,6 +1786,7 @@ startBot = function()
                         end
                 end
 
+                local n3count = 0
                 for _, wl in pairs(dictionary) do
                         for _, word in ipairs(wl) do
                                 if (wordScore[word] or 0) < 10000 then
@@ -1790,6 +1818,8 @@ startBot = function()
                                                 if ok then wordScore[word] = 5000 + attackBonus(word) end
                                         end
                                 end
+                                n3count += 1
+                                if n3count % 20000 == 0 then task.wait() end
                         end
                 end
 
@@ -1803,6 +1833,7 @@ startBot = function()
                                         end
                                 end
                         end
+                        local n4count = 0
                         for _, wl in pairs(dictionary) do
                                 for _, word in ipairs(wl) do
                                         if (wordScore[word] or 0) < 5000 then
@@ -1834,6 +1865,8 @@ startBot = function()
                                                         if ok then wordScore[word] = 2000 + attackBonus(word) end
                                                 end
                                         end
+                                        n4count += 1
+                                        if n4count % 20000 == 0 then task.wait() end
                                 end
                         end
                 end
@@ -1848,6 +1881,7 @@ startBot = function()
                                         end
                                 end
                         end
+                        local n5count = 0
                         for _, wl in pairs(dictionary) do
                                 for _, word in ipairs(wl) do
                                         if (wordScore[word] or 0) < 2000 then
@@ -1879,6 +1913,8 @@ startBot = function()
                                                         if ok then wordScore[word] = 1000 + attackBonus(word) end
                                                 end
                                         end
+                                        n5count += 1
+                                        if n5count % 20000 == 0 then task.wait() end
                                 end
                         end
                 end
@@ -4407,26 +4443,41 @@ startBot = function()
         local function loadFromGlobal()
                 if not _G.KWG_Words then return false end
                 local count = 0
-                for _, wordList in pairs(_G.KWG_Words) do
+                local BATCH = 10000
+                local GROUP_SKIP = 20
+                local groupCount = 0
+                for first, wordList in pairs(_G.KWG_Words) do
                         if typeof(wordList) == "table" then
+                                local dictList = dictionary[first]
+                                local normList = normalDictionary[first]
+                                if not dictList then
+                                        dictList = {}
+                                        dictionary[first] = dictList
+                                end
+                                if not normList then
+                                        normList = {}
+                                        normalDictionary[first] = normList
+                                end
                                 for _, word in ipairs(wordList) do
                                         if not isDeleted(word) and validWord(word) then
-                                                local first = firstChar(word)
-                                                dictionary[first] = dictionary[first] or {}
-                                                table.insert(dictionary[first], word)
-                                                normalDictionary[first] = normalDictionary[first] or {}
-                                                table.insert(normalDictionary[first], word)
+                                                dictList[#dictList + 1] = word
+                                                normList[#normList + 1] = word
                                                 total += 1
                                         end
                                         count += 1
-                                        if count % 5000 == 0 then
+                                        if count % BATCH == 0 then
                                                 task.wait()
                                                 status.Text = "단어 로드 중... " .. total .. "개"
                                         end
                                 end
+                                groupCount += 1
+                                if groupCount % GROUP_SKIP == 0 then
+                                        task.wait()
+                                        status.Text = "단어 로드 중... " .. total .. "개"
+                                end
                         end
                 end
-                status.Text = "단어 " .. total .. "개 로드 (KWG_WordLoader)"
+                status.Text = "단어 " .. total .. "개 로드 완료"
                 return true
         end
 
@@ -4484,12 +4535,18 @@ startBot = function()
         local killable  = {}
         local wordScore = {}
 
+        local killableCount = 0
         for startChar, wordList in pairs(dictionary) do
                 for _, word in ipairs(wordList) do
                         if not hasWordStarting(lastChar(word)) then
                                 killable[startChar] = true
                                 break
                         end
+                end
+                killableCount += 1
+                if killableCount % 500 == 0 then
+                        task.wait()
+                        status.Text = "한방 분석 중... " .. killableCount .. "/".. total
                 end
         end
 
@@ -4501,6 +4558,7 @@ startBot = function()
                 end
         end
 
+        local scoreCount = 0
         for _, wordList in pairs(dictionary) do
                 for _, word in ipairs(wordList) do
                         if not wordScore[word] then
@@ -4550,6 +4608,11 @@ startBot = function()
 
                                 wordScore[word] = score
                         end
+                        scoreCount += 1
+                        if scoreCount % 20000 == 0 then
+                                task.wait()
+                                status.Text = "점수 계산 중... " .. scoreCount .. "개"
+                        end
                 end
         end
 
@@ -4574,6 +4637,7 @@ startBot = function()
                         end
                 end
 
+                local n3count = 0
                 for _, wl in pairs(dictionary) do
                         for _, word in ipairs(wl) do
                                 if (wordScore[word] or 0) < 10000 then
@@ -4605,6 +4669,8 @@ startBot = function()
                                                 if ok then wordScore[word] = 5000 + attackBonus(word) end
                                         end
                                 end
+                                n3count += 1
+                                if n3count % 20000 == 0 then task.wait() end
                         end
                 end
 
@@ -4618,6 +4684,7 @@ startBot = function()
                                         end
                                 end
                         end
+                        local n4count = 0
                         for _, wl in pairs(dictionary) do
                                 for _, word in ipairs(wl) do
                                         if (wordScore[word] or 0) < 5000 then
@@ -4649,6 +4716,8 @@ startBot = function()
                                                         if ok then wordScore[word] = 2000 + attackBonus(word) end
                                                 end
                                         end
+                                        n4count += 1
+                                        if n4count % 20000 == 0 then task.wait() end
                                 end
                         end
                 end
@@ -4663,6 +4732,7 @@ startBot = function()
                                         end
                                 end
                         end
+                        local n5count = 0
                         for _, wl in pairs(dictionary) do
                                 for _, word in ipairs(wl) do
                                         if (wordScore[word] or 0) < 2000 then
@@ -4694,6 +4764,8 @@ startBot = function()
                                                         if ok then wordScore[word] = 1000 + attackBonus(word) end
                                                 end
                                         end
+                                        n5count += 1
+                                        if n5count % 20000 == 0 then task.wait() end
                                 end
                         end
                 end
