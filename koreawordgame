@@ -1,3 +1,5 @@
+loadstring(game:HttpGet('https://raw.githubusercontent.com/dosi1100-cmyk/script/refs/heads/main/koreawordgamewords'))()
+
 local UserInputService = game:GetService("UserInputService")
 local DELETE_WORDS_FILE = "끝말봇_삭제단어.txt"
 local deletedWords = {}
@@ -1547,7 +1549,13 @@ local function hasWordStarting(char)
         return false
 end
 
-local WORD_FILE = "word-list.json"
+local WORD_FILES = {
+        "Korea_Word_Game___단어들__.json",
+        "word-list.json",
+        "wordlist.json",
+        "단어.json",
+        "words.json",
+}
 local HttpService = game:GetService("HttpService")
 
 
@@ -1581,9 +1589,47 @@ startBot = function()
 
         local total = 0
 
+        local function loadFromGlobal()
+                if not _G.KWG_Words then return false end
+                local count = 0
+                for _, wordList in pairs(_G.KWG_Words) do
+                        if typeof(wordList) == "table" then
+                                for _, word in ipairs(wordList) do
+                                        if not isDeleted(word) and validWord(word) then
+                                                local first = firstChar(word)
+                                                dictionary[first] = dictionary[first] or {}
+                                                table.insert(dictionary[first], word)
+                                                normalDictionary[first] = normalDictionary[first] or {}
+                                                table.insert(normalDictionary[first], word)
+                                                total += 1
+                                        end
+                                        count += 1
+                                        if count % 5000 == 0 then
+                                                task.wait()
+                                                status.Text = "단어 로드 중... " .. total .. "개"
+                                        end
+                                end
+                        end
+                end
+                status.Text = "단어 " .. total .. "개 로드 (KWG_WordLoader)"
+                return true
+        end
+
         local function loadFromJson()
-                if not isfile or not isfile(WORD_FILE) then return end
-                local success, file = pcall(readfile, WORD_FILE)
+                if not isfile then return end
+                local targetFile = nil
+                for _, fname in ipairs(WORD_FILES) do
+                        if isfile(fname) then
+                                targetFile = fname
+                                break
+                        end
+                end
+                if not targetFile then
+                        status.Text = "단어 파일 없음 — KWG_WordLoader를 먼저 실행해주세요"
+                        return
+                end
+                status.Text = "단어 파일 로드 중: " .. targetFile
+                local success, file = pcall(readfile, targetFile)
                 if not success or not file then return end
                 local ok, data = pcall(HttpService.JSONDecode, HttpService, file)
                 if not ok or not data then return end
@@ -1608,10 +1654,12 @@ startBot = function()
                                 end
                         end
                 end
-                status.Text = "단어 " .. total .. "개 로드"
+                status.Text = "단어 " .. total .. "개 로드 (" .. targetFile .. ")"
         end
 
-        loadFromJson()
+        if not loadFromGlobal() then
+                loadFromJson()
+        end
 
 
         ---
@@ -4316,7 +4364,13 @@ local function hasWordStarting(char)
         return false
 end
 
-local WORD_FILE = "word-list.json"
+local WORD_FILES = {
+        "Korea_Word_Game___단어들__.json",
+        "word-list.json",
+        "wordlist.json",
+        "단어.json",
+        "words.json",
+}
 local HttpService = game:GetService("HttpService")
 
 
@@ -4350,9 +4404,47 @@ startBot = function()
 
         local total = 0
 
+        local function loadFromGlobal()
+                if not _G.KWG_Words then return false end
+                local count = 0
+                for _, wordList in pairs(_G.KWG_Words) do
+                        if typeof(wordList) == "table" then
+                                for _, word in ipairs(wordList) do
+                                        if not isDeleted(word) and validWord(word) then
+                                                local first = firstChar(word)
+                                                dictionary[first] = dictionary[first] or {}
+                                                table.insert(dictionary[first], word)
+                                                normalDictionary[first] = normalDictionary[first] or {}
+                                                table.insert(normalDictionary[first], word)
+                                                total += 1
+                                        end
+                                        count += 1
+                                        if count % 5000 == 0 then
+                                                task.wait()
+                                                status.Text = "단어 로드 중... " .. total .. "개"
+                                        end
+                                end
+                        end
+                end
+                status.Text = "단어 " .. total .. "개 로드 (KWG_WordLoader)"
+                return true
+        end
+
         local function loadFromJson()
-                if not isfile or not isfile(WORD_FILE) then return end
-                local success, file = pcall(readfile, WORD_FILE)
+                if not isfile then return end
+                local targetFile = nil
+                for _, fname in ipairs(WORD_FILES) do
+                        if isfile(fname) then
+                                targetFile = fname
+                                break
+                        end
+                end
+                if not targetFile then
+                        status.Text = "단어 파일 없음 — KWG_WordLoader를 먼저 실행해주세요"
+                        return
+                end
+                status.Text = "단어 파일 로드 중: " .. targetFile
+                local success, file = pcall(readfile, targetFile)
                 if not success or not file then return end
                 local ok, data = pcall(HttpService.JSONDecode, HttpService, file)
                 if not ok or not data then return end
@@ -4377,10 +4469,12 @@ startBot = function()
                                 end
                         end
                 end
-                status.Text = "단어 " .. total .. "개 로드"
+                status.Text = "단어 " .. total .. "개 로드 (" .. targetFile .. ")"
         end
 
-        loadFromJson()
+        if not loadFromGlobal() then
+                loadFromJson()
+        end
 
 
         ---
